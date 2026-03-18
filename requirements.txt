@@ -1,0 +1,13 @@
+fastai==1.0.61
+torch
+torchvision
+pandas
+matplotlib
+numpy
+Pillow
+scikit-learn
+scipy
+ipykernel
+dash
+dash-bootstrap-components
+plotly
