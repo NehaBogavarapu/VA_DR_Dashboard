@@ -64,10 +64,11 @@ def retrain_with_annotations(annotations):
 
     _finetune(learn, corrected_labels)
 
-    # Save updated model weights
-    model_save_path = os.path.join(BASE_DIR, "export.pkl")
-    learn.export(model_save_path)
-    print(f"Saved updated model to {model_save_path}")
+    # Save updated model weights (state dict only — avoids pickle issues)
+    import torch
+    weights_path = os.path.join(BASE_DIR, "retrained_weights.pth")
+    torch.save(learn.model.state_dict(), weights_path)
+    print(f"Saved updated weights to {weights_path}")
 
     # ── Step 2: Re-predict ALL images with updated model ───────────────
     print("Re-predicting all images...")

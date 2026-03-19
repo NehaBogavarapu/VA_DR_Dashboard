@@ -80,8 +80,30 @@ def get_learner():
 
 
 def reload_learner():
-    """Force reload the learner (after retraining saves new weights)."""
+    """Reload model weights after retraining.
+    Loads retrained_weights.pth into the existing learner if available,
+    otherwise falls back to full reload from export.pkl."""
     global _learn
+    import torch
+
+    weights_path = os.path.join(BASE_DIR, "retrained_weights.pth")
+
+    if _learn is not None and os.path.exists(weights_path):
+        # Load new weights into existing model (fast, no pickle issues)
+        _original = torch.load
+        def _patched(*a, **kw):
+            if "weights_only" not in kw: kw["weights_only"] = False
+            return _original(*a, **kw)
+        torch.load = _patched
+        try:
+            _learn.model.load_state_dict(torch.load(weights_path))
+            _learn.model.eval()
+            print("Reloaded retrained weights into existing model.")
+        finally:
+            torch.load = _original
+        return _learn
+
+    # Fallback: full reload from export.pkl
     _learn = None
     return get_learner()
 

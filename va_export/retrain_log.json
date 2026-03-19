@@ -153,5 +153,30 @@
       "beta": 0.5,
       "image_size": 224
     }
+  },
+  {
+    "timestamp": "2026-03-19T10:49:43.837777",
+    "n_annotations": 5,
+    "image_ids": [
+      "d2c5fb82fe5f",
+      "e740af6ac6ea",
+      "d29b37d110f3",
+      "144b01e7b993",
+      "bde1063a5dd7"
+    ],
+    "result": {
+      "success": true,
+      "message": "Model retrained on 5 images. Accuracy: 75.8% \u2192 41.1%. All predictions and embeddings recomputed.",
+      "metrics": {
+        "accuracy_before": 0.758,
+        "accuracy_after": 0.4114,
+        "images_retrained": 5
+      }
+    },
+    "config": {
+      "learning_rate": 0.0001,
+      "epochs": 2,
+      "image_size": 224
+    }
   }
 ]
