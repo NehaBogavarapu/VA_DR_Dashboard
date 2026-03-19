@@ -227,24 +227,17 @@ def extract_embedding(image_id: str) -> np.ndarray:
 
 def generate_lime_explanation(
     image_id: str,
-    num_samples: int = 50,
-    num_features: int = 5,
+    num_samples: int = 300,
+    num_features: int = 10,
     positive_only: bool = False,
 ) -> tuple:
     """Generate a real LIME saliency explanation for a retinal image.
-
-    Uses 50 samples (not 300) for reasonable speed on CPU (~30 seconds).
-    The image is resized to 224x224 before LIME to avoid processing huge images.
 
     Returns (overlay_rgba, mask) where overlay is (H, W, 4) uint8 RGBA.
     """
     image_path = _find_image(image_id)
     img = Image.open(image_path).convert("RGB")
-
-    # Resize to model input size BEFORE LIME — this is the key speed fix.
-    # LIME perturbs the image at this resolution, so each forward pass is fast.
-    img_resized = img.resize((224, 224), Image.LANCZOS)
-    img_array = np.array(img_resized)
+    img_array = np.array(img)
 
     from lime.lime_image import LimeImageExplainer
     from skimage.segmentation import quickshift
@@ -254,10 +247,9 @@ def generate_lime_explanation(
     explanation = explainer.explain_instance(
         img_array,
         _predict_fn,
-        top_labels=1,
+        top_labels=5,
         hide_color=0,
         num_samples=num_samples,
-        batch_size=10,
         segmentation_fn=lambda x: quickshift(
             x, kernel_size=4, max_dist=200, ratio=0.2
         ),
