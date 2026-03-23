@@ -1,0 +1,23 @@
+{
+  "class_names": {
+    "0": "cats",
+    "1": "dogs",
+    "2": "panda"
+  },
+  "label_to_class": {
+    "cats": 0,
+    "dogs": 1,
+    "panda": 2
+  },
+  "fastai_classes": [
+    "cats",
+    "dogs",
+    "panda"
+  ],
+  "fastai_idx_to_label": [
+    0,
+    1,
+    2
+  ],
+  "num_classes": 3
+}
