@@ -1,1 +1,122 @@
-[]
+[
+  {
+    "image_id": "64fedbf97473",
+    "correct_grade": 4,
+    "shapes": [
+      {
+        "editable": true,
+        "visible": true,
+        "showlegend": false,
+        "legend": "legend",
+        "legendgroup": "",
+        "legendgrouptitle": {
+          "text": "",
+          "font": {
+            "weight": "normal",
+            "style": "normal",
+            "variant": "normal",
+            "lineposition": "none",
+            "textcase": "normal",
+            "shadow": "none"
+          }
+        },
+        "legendrank": 1000,
+        "label": {
+          "text": "",
+          "texttemplate": "",
+          "texttemplatefallback": "-"
+        },
+        "xref": "x",
+        "yref": "y",
+        "layer": "above",
+        "opacity": 1,
+        "line": {
+          "color": "red",
+          "width": 2,
+          "dash": "solid"
+        },
+        "fillcolor": "rgba(255,0,0,0.3)",
+        "fillrule": "evenodd",
+        "type": "path",
+        "path": "M1949.5711875111288,626.5602039652333L1883.2122131521544,700.2923976974271L1765.2407031806445,707.6656170706465L1728.3746063145477,670.7995202045496L1728.3746063145477,383.24396464899405L1846.3461162860576,287.3921127971422L2089.662355602297,294.76533217036155L2104.4087943487357,331.6314290364584L2126.528452468394,339.0046484096778L2141.2748912148327,375.87074527577465L2251.873181813123,501.215474620504Z"
+      },
+      {
+        "editable": true,
+        "visible": true,
+        "showlegend": false,
+        "legend": "legend",
+        "legendgroup": "",
+        "legendgrouptitle": {
+          "text": "",
+          "font": {
+            "weight": "normal",
+            "style": "normal",
+            "variant": "normal",
+            "lineposition": "none",
+            "textcase": "normal",
+            "shadow": "none"
+          }
+        },
+        "legendrank": 1000,
+        "label": {
+          "text": "",
+          "texttemplate": "",
+          "texttemplatefallback": "-"
+        },
+        "xref": "x",
+        "yref": "y",
+        "layer": "above",
+        "opacity": 1,
+        "line": {
+          "color": "blue",
+          "width": 2,
+          "dash": "solid"
+        },
+        "fillcolor": "rgba(0,100,255,0.3)",
+        "fillrule": "evenodd",
+        "type": "path",
+        "path": "M1868.4657744057156,1570.332283737313L1816.85323879318,1540.8394062444356L1713.628167568109,1496.6000900051192L1610.4030963430375,1393.375018780048L1610.4030963430375,1231.164192569222L1647.2691932091345,1127.9391213441506L1787.3603613003027,1083.6998051048345L1986.4372843772255,1076.326585731615L2060.1694781094193,1150.0587794638088L2119.1552330951745,1312.269605674635L2119.1552330951745,1349.135702540732Z"
+      },
+      {
+        "editable": true,
+        "visible": true,
+        "showlegend": false,
+        "legend": "legend",
+        "legendgroup": "",
+        "legendgrouptitle": {
+          "text": "",
+          "font": {
+            "weight": "normal",
+            "style": "normal",
+            "variant": "normal",
+            "lineposition": "none",
+            "textcase": "normal",
+            "shadow": "none"
+          }
+        },
+        "legendrank": 1000,
+        "label": {
+          "text": "",
+          "texttemplate": "",
+          "texttemplatefallback": "-"
+        },
+        "xref": "x",
+        "yref": "y",
+        "layer": "above",
+        "opacity": 1,
+        "line": {
+          "color": "green",
+          "width": 2,
+          "dash": "solid"
+        },
+        "fillcolor": "rgba(0,200,0,0.3)",
+        "fillrule": "evenodd",
+        "type": "path",
+        "path": "M850.9615009014423,737.158494563524L887.8275977675391,456.97615838118776L850.9615009014423,339.0046484096778L681.3774553173967,206.2866996917291L563.4059453458867,191.54026094529036L467.5540934940349,280.0188934239228L452.80765474759613,383.24396464899405L452.80765474759613,442.229719634749L526.5398484797898,567.5744489794783L644.5113584512998,715.0388364438658L651.8845778245192,766.6513720564014Z"
+      }
+    ],
+    "brush_color": "rgba(0,200,0,0.3)",
+    "annotation_type": "unknown",
+    "timestamp": "2026-03-20T16:22:37.789941"
+  }
+]

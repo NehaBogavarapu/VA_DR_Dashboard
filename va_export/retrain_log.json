@@ -178,5 +178,27 @@
       "epochs": 2,
       "image_size": 224
     }
+  },
+  {
+    "timestamp": "2026-03-20T16:17:34.513858",
+    "n_annotations": 2,
+    "image_ids": [
+      "4158c340fa49",
+      "20f86e068276"
+    ],
+    "result": {
+      "success": true,
+      "message": "Model retrained on 2 images. Accuracy: 41.1% \u2192 40.1%. All predictions and embeddings recomputed.",
+      "metrics": {
+        "accuracy_before": 0.4114,
+        "accuracy_after": 0.4006,
+        "images_retrained": 2
+      }
+    },
+    "config": {
+      "learning_rate": 0.0001,
+      "epochs": 2,
+      "image_size": 224
+    }
   }
 ]

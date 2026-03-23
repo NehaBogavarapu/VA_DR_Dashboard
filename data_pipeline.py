@@ -25,7 +25,7 @@ from functools import lru_cache
 
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
-from sklearn.decomposition import PCA
+import umap
 
 # ── Paths ──────────────────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -91,11 +91,12 @@ def load_data() -> pd.DataFrame:
 
 def clear_cache():
     """Clear all cached data so next load_data() reads fresh from disk.
-    Call this after retraining updates predictions.csv."""
+    Call this after retraining updates predictions.csv and model weights."""
     load_data.cache_clear()
     load_embeddings.cache_clear()
     _projection_cache.clear()
-    print("Data cache cleared.")
+    _hidden_layer_cache.clear()
+    print("Data cache cleared (including hidden layer cache).")
 
 
 @lru_cache(maxsize=1)
@@ -137,43 +138,133 @@ def filter_by_grades(df: pd.DataFrame, grades: list) -> pd.DataFrame:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  PCA PROJECTION
+#  MODEL HIDDEN LAYER → PCA → UMAP PROJECTION
 # ═══════════════════════════════════════════════════════════════════════════
 
 _projection_cache = {}
+_hidden_layer_cache = {}  # image_id → hidden layer vector
+
+
+def _extract_hidden_layers(image_ids: list) -> np.ndarray:
+    """Run the model and extract the last hidden layer activations.
+
+    This captures how the network 'sees' each image — the representation
+    just before the final classification head. Uses the same hook approach
+    as the embedding extraction in the notebook, but runs live so it
+    always reflects the current model weights (including after retraining).
+
+    Returns np.ndarray of shape (len(image_ids), D) where D is the
+    hidden layer dimension (4096 for fastai ResNet-50 with concat pool).
+    """
+    # Check cache first — only extract missing ones
+    missing_ids = [iid for iid in image_ids if iid not in _hidden_layer_cache]
+
+    if missing_ids:
+        import torch
+        from torchvision import transforms
+        from PIL import Image as PILImage
+        from lime_explainer import get_learner
+
+        learn = get_learner()
+        model = learn.model
+        device = next(model.parameters()).device
+
+        tfm = transforms.Compose([
+            transforms.Resize((224, 224)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                 std=[0.229, 0.224, 0.225]),
+        ])
+
+        # Hook into the last hidden layer (AdaptiveConcatPool2d output)
+        hidden_outputs = []
+        def hook(module, input, output):
+            out = output.detach().cpu()
+            if out.dim() == 4:
+                out = out.squeeze(-1).squeeze(-1)
+            elif out.dim() == 3:
+                out = out.squeeze(-1)
+            hidden_outputs.append(out.numpy())
+
+        pool_layer = model[1][0]  # AdaptiveConcatPool2d
+        handle = pool_layer.register_forward_hook(hook)
+
+        model.eval()
+        batch_size = 32
+        for start in range(0, len(missing_ids), batch_size):
+            batch_ids = missing_ids[start:start+batch_size]
+            tensors = []
+            for img_id in batch_ids:
+                path = _find_image_path(img_id)
+                img = PILImage.open(path).convert("RGB")
+                tensors.append(tfm(img))
+
+            batch = torch.stack(tensors).to(device)
+            with torch.no_grad():
+                _ = model(batch)
+
+        handle.remove()
+
+        # Flatten and cache per image
+        all_hidden = np.concatenate(hidden_outputs, axis=0)
+        for i, iid in enumerate(missing_ids):
+            _hidden_layer_cache[iid] = all_hidden[i]
+
+        print(f"Extracted hidden layers for {len(missing_ids)} images "
+              f"(dim: {all_hidden.shape[1]})")
+
+    # Return in the requested order
+    return np.array([_hidden_layer_cache[iid] for iid in image_ids])
+
+
+def _find_image_path(image_id: str) -> str:
+    """Find image file, trying .png then .jpg."""
+    for ext in [".png", ".jpg", ".jpeg"]:
+        p = os.path.join(IMAGES_DIR, f"{image_id}{ext}")
+        if os.path.exists(p):
+            return p
+    return os.path.join(IMAGES_DIR, f"{image_id}.png")
 
 
 def get_pca_embeddings(
     df: pd.DataFrame,
-    pca_components: int = 2,
+    n_neighbors: int = 15,
+    min_dist: float = 0.1,
     random_state: int = 42,
 ) -> np.ndarray:
-    """Project embeddings into 2-D via PCA.
+    """Project the model's last hidden layer into 2-D via UMAP.
 
-    Pipeline: 4096-D embeddings → StandardScaler → PCA (to 2-D)
+    Pipeline:
+      1. Run model on all images, capture last hidden layer (4096-D)
+      2. StandardScaler → UMAP (to 2-D)
+
+    This visualizes how the NETWORK sees the data.
+    After retraining, the hidden representations change, so the scatter
+    plot reflects the updated model's internal representation.
 
     Returns np.ndarray of shape (len(df), 2).
     """
-    full_df = load_data()
-    full_embeddings = load_embeddings()
-
-    idx_map = {img_id: i for i, img_id in enumerate(full_df["image_id"])}
-    indices = [idx_map[img_id] for img_id in df["image_id"]]
-    subset_embeddings = full_embeddings[indices]
-
-    cache_key = (tuple(sorted(indices)), pca_components)
+    image_ids = df["image_id"].tolist()
+    cache_key = (tuple(sorted(image_ids)), n_neighbors, min_dist)
     if cache_key in _projection_cache:
         return _projection_cache[cache_key]
 
+    # Step 1: Extract hidden layer from the live model
+    hidden = _extract_hidden_layers(image_ids)
+
+    # Step 2: Scale + UMAP directly
     scaler = StandardScaler()
-    scaled = scaler.fit_transform(subset_embeddings)
+    scaled = scaler.fit_transform(hidden)
 
-    n_comp = min(pca_components, scaled.shape[0] - 1, scaled.shape[1])
-    pca = PCA(n_components=n_comp, random_state=random_state)
-    coords = pca.fit_transform(scaled)
-
-    explained = pca.explained_variance_ratio_.sum()
-    print(f"PCA: {scaled.shape[1]}D → {n_comp}D (explained variance: {explained:.1%})")
+    reducer = umap.UMAP(
+        n_components=2,
+        n_neighbors=min(n_neighbors, len(scaled) - 1),
+        min_dist=min_dist,
+        metric="cosine",
+        random_state=random_state,
+    )
+    coords = reducer.fit_transform(scaled)
+    print(f"UMAP: {scaled.shape[1]}D → 2D ({len(coords)} points)")
 
     _projection_cache[cache_key] = coords
     return coords
