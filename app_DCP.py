@@ -21,7 +21,7 @@ from PIL import Image
 from data_pipeline_DCP import (
     load_data, get_umap_embeddings, run_kmeans,
     get_misclassified, filter_by_confidence,
-    CLASS_NAMES,
+    CLASS_NAMES, CLASS_DISPLAY,
 )
 from lime_explainer_DCP import generate_lime_explanation
 from annotation_store_DCP import AnnotationStore
@@ -58,7 +58,7 @@ def make_legend_for_mode(mode):
     if mode in ("true_class", "pred_class"):
         return [html.Span([
             html.Span(style={"display": "inline-block", "width": "12px", "height": "12px", "borderRadius": "50%", "backgroundColor": CLASS_COLORS[c], "marginRight": "4px", "verticalAlign": "middle"}),
-            html.Span(f"{CLASS_NAMES[c]}", style={"fontSize": "12px"})
+            html.Span(f"{CLASS_DISPLAY[c]}", style={"fontSize": "12px"})
         ], style={"marginRight": "14px"}) for c in range(3)]
     return [html.Span([
         html.Span(style={"display": "inline-block", "width": "12px", "height": "12px", "borderRadius": "50%", "backgroundColor": c, "marginRight": "4px", "verticalAlign": "middle"}),
@@ -78,7 +78,7 @@ header = dbc.Navbar(dbc.Container([
 sidebar = dbc.Card(dbc.CardBody([
     html.H6("Filters", className="mb-3", style={"fontWeight": "600"}),
     html.Label("Show classes", style={"fontSize": "13px"}),
-    dcc.Checklist(id="class-filter", options=[{"label": f" {CLASS_NAMES[c]}", "value": c} for c in range(3)], value=[0, 1, 2], inline=False, style={"fontSize": "13px", "marginBottom": "12px"}),
+    dcc.Checklist(id="class-filter", options=[{"label": f" {CLASS_DISPLAY[c]}", "value": c} for c in range(3)], value=[0, 1, 2], inline=False, style={"fontSize": "13px", "marginBottom": "12px"}),
     dbc.Switch(id="misclassified-only", label="Misclassified only", value=False, style={"fontSize": "13px", "marginBottom": "12px"}),
     html.Label("Confidence range", style={"fontSize": "13px"}),
     dcc.RangeSlider(id="confidence-slider", min=0, max=1, step=0.05, value=[0.0, 1.0], marks={0: "0", 0.5: "0.5", 1: "1"}, tooltip={"placement": "bottom"}),
@@ -161,7 +161,7 @@ side_panel = html.Div(id="side-panel", style=PANEL_HIDDEN, children=[
                      {"label": "Background (green)", "value": "background"},
                  ], value="important", clearable=False, style={"fontSize": "12px"})], width=6),
         dbc.Col([html.Label("Correct class", style={"fontSize": "12px"}),
-                 dcc.Dropdown(id="correct-class", options=[{"label": CLASS_NAMES[c], "value": c} for c in range(3)],
+                 dcc.Dropdown(id="correct-class", options=[{"label": CLASS_DISPLAY[c], "value": c} for c in range(3)],
                               placeholder="Select…", clearable=False, style={"fontSize": "12px"})], width=6)
     ], className="mt-2"),
     dbc.Button("Save annotation", id="save-annotation-btn", color="primary", size="sm", className="w-100 mt-2"),
@@ -213,7 +213,7 @@ def update_overview(classes, conf_range):
     # Chart 1: Stacked bar (correct vs misclassified per class)
     dist_fig = go.Figure()
     ac = sorted(df["true_class"].unique())
-    labels = [CLASS_NAMES[c] for c in ac]
+    labels = [CLASS_DISPLAY[c] for c in ac]
     correct_counts = []
     misclass_counts = []
     correct_pcts = []
@@ -260,7 +260,7 @@ def update_overview(classes, conf_range):
         for j, pc in enumerate(ac):
             cm[i, j] = ((df["true_class"] == tc) & (df["pred_class"] == pc)).sum()
     cmf = go.Figure(go.Heatmap(
-        z=cm, x=[CLASS_NAMES[c] for c in ac], y=[CLASS_NAMES[c] for c in ac],
+        z=cm, x=[CLASS_DISPLAY[c] for c in ac], y=[CLASS_DISPLAY[c] for c in ac],
         text=[[str(cm[i, j]) for j in range(n)] for i in range(n)],
         texttemplate="%{text}", textfont=dict(size=12),
         colorscale=[[0, "#f8f9fa"], [0.3, "#f5c4b3"], [0.6, "#e67e22"], [1, "#c0392b"]],
@@ -273,8 +273,8 @@ def update_overview(classes, conf_range):
     rows = [html.Tr([
         html.Td(r["image_id"][:15], style={"fontFamily": "monospace"}),
         html.Td(f"{r['uncertainty']:.2f}"),
-        html.Td(CLASS_NAMES[int(r["true_class"])]),
-        html.Td(CLASS_NAMES[int(r["pred_class"])]),
+        html.Td(CLASS_DISPLAY[int(r["true_class"])]),
+        html.Td(CLASS_DISPLAY[int(r["pred_class"])]),
         html.Td(dbc.Badge("✗" if r["pred_class"] != r["true_class"] else "✓",
                            color="danger" if r["pred_class"] != r["true_class"] else "success", style={"fontSize": "10px"}))
     ], style={"backgroundColor": "#fff5f5" if r["pred_class"] != r["true_class"] else ""}) for _, r in dr.iterrows()]
@@ -317,13 +317,13 @@ def update_scatter(classes, mo, cr, cm):
             s = df[df["true_class"] == c]
             fig.add_trace(go.Scatter(x=s["u1"], y=s["u2"], mode="markers",
                                       marker=dict(size=8, color=CLASS_COLORS[c], line=dict(width=0.5, color="white"), opacity=0.8),
-                                      name=CLASS_NAMES[c], customdata=s[cd].values, hovertemplate=ht))
+                                      name=CLASS_DISPLAY[c], customdata=s[cd].values, hovertemplate=ht))
     elif cm == "pred_class":
         for c in sorted(df["pred_class"].unique()):
             s = df[df["pred_class"] == c]
             fig.add_trace(go.Scatter(x=s["u1"], y=s["u2"], mode="markers",
                                       marker=dict(size=8, color=CLASS_COLORS[c], line=dict(width=0.5, color="white"), opacity=0.8),
-                                      name=f"Pred {CLASS_NAMES[c]}", customdata=s[cd].values, hovertemplate=ht))
+                                      name=f"Pred {CLASS_DISPLAY[c]}", customdata=s[cd].values, hovertemplate=ht))
     else:
         for w, l, c in [(False, "Correct", "#2ecc71"), (True, "Misclassified", "#e74c3c")]:
             s = df[df["mis"] == w]
@@ -395,17 +395,17 @@ def _build_panel(image_id, row, lime_opacity, brush_color):
     meta = html.Div([
         html.H6(f"Image: {image_id}", style={"fontWeight": "600", "fontSize": "14px"}),
         html.P([html.Span("Predicted: ", style={"fontWeight": "500"}),
-                html.Span(CLASS_NAMES[pc], style={"color": CLASS_COLORS[pc], "fontWeight": "600"})],
+                html.Span(CLASS_DISPLAY[pc], style={"color": CLASS_COLORS[pc], "fontWeight": "600"})],
                style={"marginBottom": "2px", "fontSize": "13px"}),
         html.P([html.Span("True: ", style={"fontWeight": "500"}),
-                html.Span(CLASS_NAMES[tc], style={"color": CLASS_COLORS[tc], "fontWeight": "600"})],
+                html.Span(CLASS_DISPLAY[tc], style={"color": CLASS_COLORS[tc], "fontWeight": "600"})],
                style={"marginBottom": "2px", "fontSize": "13px"}),
         html.P([dbc.Badge("Correct" if pc == tc else "Misclassified",
                            color="success" if pc == tc else "danger", style={"fontSize": "11px"}),
                 html.Span(f"  Uncertainty: {unc:.2f}", style={"fontSize": "12px", "color": "#888", "marginLeft": "8px"})])
     ])
 
-    cf = go.Figure(go.Bar(x=cc, y=[CLASS_NAMES[i] for i in range(3)], orientation="h",
+    cf = go.Figure(go.Bar(x=cc, y=[CLASS_DISPLAY[i] for i in range(3)], orientation="h",
                            marker_color=[CLASS_COLORS[i] for i in range(3)],
                            text=[f"{c:.0%}" for c in cc], textposition="auto", textfont=dict(size=11)))
     cf.update_layout(template="plotly_white", margin=dict(l=50, r=10, t=5, b=5),
@@ -453,7 +453,7 @@ def save_ann(nc, iid, rd, cg, bc):
     annotation_store.add(image_id=iid, correct_class=cg, shapes=shapes, brush_color=c["fill"])
     log = [dbc.Card(dbc.CardBody([
         html.Strong(a["image_id"], style={"fontSize": "11px"}), html.Br(),
-        html.Span(f"→ {CLASS_NAMES[a['correct_class']]} · {len(a['shapes'])} regions", style={"fontSize": "10px", "color": "#666"})
+        html.Span(f"→ {CLASS_DISPLAY[a['correct_class']]} · {len(a['shapes'])} regions", style={"fontSize": "10px", "color": "#666"})
     ], style={"padding": "4px 8px"}), className="mb-1") for a in annotation_store.get_all()]
     return log, f"Saved for {iid}.", not bool(annotation_store.get_all())
 

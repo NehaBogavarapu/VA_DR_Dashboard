@@ -13,9 +13,10 @@ from datetime import datetime
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "va_export")
 PREDICTIONS_PATH = os.path.join(DATA_DIR, "predictions.csv")
-IMAGES_BASE = BASE_DIR
+IMAGES_BASE = os.path.join(BASE_DIR, "data")
 
-CLASS_NAMES = {0: "Cat", 1: "Dog", 2: "Panda"}
+CLASS_NAMES = {0: "cats", 1: "dogs", 2: "panda"}  # Must match fastai class order
+CLASS_DISPLAY = {0: "Cat", 1: "Dog", 2: "Panda"}
 CLASS_FOLDERS = {0: "cats", 1: "dogs", 2: "panda"}
 
 RETRAIN_CONFIG = {

@@ -22,11 +22,12 @@ import umap
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "va_export")
 PREDICTIONS_PATH = os.path.join(DATA_DIR, "predictions.csv")
-# Images are in subdirectories: cats/, dogs/, panda/ (same folder as this script)
-IMAGES_BASE = BASE_DIR
+# Images are in subdirectories: data/cats/, data/dogs/, data/panda/
+IMAGES_BASE = os.path.join(BASE_DIR, "data")
 
-# Class mapping
-CLASS_NAMES = {0: "Cat", 1: "Dog", 2: "Panda"}
+# Class mapping — must match fastai's class order (folder names, alphabetical)
+CLASS_NAMES = {0: "cats", 1: "dogs", 2: "panda"}
+CLASS_DISPLAY = {0: "Cat", 1: "Dog", 2: "Panda"}  # Pretty names for UI
 CLASS_FOLDERS = {0: "cats", 1: "dogs", 2: "panda"}
 
 

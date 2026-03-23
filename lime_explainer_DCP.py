@@ -11,10 +11,11 @@ import numpy as np
 from PIL import Image
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-IMAGES_BASE = BASE_DIR
+IMAGES_BASE = os.path.join(BASE_DIR, "data")
 EXPORT_PKL_PATH = os.path.join(BASE_DIR, "export.pkl")
 
-CLASS_NAMES = {0: "Cat", 1: "Dog", 2: "Panda"}
+CLASS_NAMES = {0: "cats", 1: "dogs", 2: "panda"}  # Must match fastai class order
+CLASS_DISPLAY = {0: "Cat", 1: "Dog", 2: "Panda"}
 CLASS_FOLDERS = {0: "cats", 1: "dogs", 2: "panda"}
 
 # ═══════════════════════════════════════════════════════════════════════════
