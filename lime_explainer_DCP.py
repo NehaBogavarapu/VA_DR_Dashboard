@@ -116,8 +116,20 @@ def _predict_fn(images: np.ndarray) -> np.ndarray:
     learn = get_learner()
     fastai_cls = get_fastai_classes()
 
-    # Build reorder mapping: fastai index → our label index
-    name_to_label = {v: k for k, v in CLASS_NAMES.items()}
+    # Build reorder mapping: fastai class name → our label index
+    # The model uses class names like 'Cat', 'Dog', 'Panda' (from training)
+    # CLASS_NAMES uses folder names like 'cats', 'dogs', 'panda'
+    # We need to match them flexibly
+    name_to_label = {}
+    for k, v in CLASS_NAMES.items():
+        name_to_label[v] = k
+        name_to_label[v.lower()] = k
+        name_to_label[v.capitalize()] = k
+        name_to_label[v.title()] = k
+    # Also add CLASS_DISPLAY names (Cat, Dog, Panda)
+    for k, v in CLASS_DISPLAY.items():
+        name_to_label[v] = k
+        name_to_label[v.lower()] = k
     reorder = [name_to_label[fastai_cls[i]] for i in range(len(fastai_cls))]
 
     tfm = transforms.Compose([
@@ -176,9 +188,9 @@ def predict_single(image_id: str, true_class: int = None) -> dict:
         logits = learn.model(tensor)
         probs = torch.softmax(logits, dim=1).cpu().numpy()[0]
 
-    # Reorder to our label order
-    name_to_label = {v: k for k, v in CLASS_NAMES.items()}
-    ordered_probs = [float(probs[fastai_cls.index(CLASS_NAMES[j])]) for j in range(3)]
+    # Reorder to our label order — match case-insensitively
+    fastai_lower = [c.lower() for c in fastai_cls]
+    ordered_probs = [float(probs[fastai_lower.index(CLASS_NAMES[j].lower())]) for j in range(3)]
 
     pred_class = int(np.argmax(ordered_probs))
 
