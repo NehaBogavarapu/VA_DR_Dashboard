@@ -75,6 +75,7 @@ def make_legend_for_mode(mode):
 # ═══════════════════════════════════════════════════════════════════════════
 
 header = dbc.Navbar(dbc.Container([
+    dbc.Button("☰ Filters", id="toggle-sidebar-btn", size="sm", color="secondary"),
     dbc.NavbarBrand("DCP‑VA  Dog / Cat / Panda Visual Analytics", style={"fontWeight": "600"}),
     html.Span("ResNet‑50 · UMAP + LIME", style={"color": "rgba(255,255,255,0.7)", "fontSize": "13px"})
 ], fluid=True), color="dark", dark=True, sticky="top")
@@ -106,11 +107,7 @@ sidebar = dbc.Card(dbc.CardBody([
 ]), style={"height": "100%"})
 
 overview_row = dbc.Row([
-    dbc.Col(dbc.Card(dbc.CardBody([
-        html.H6("Class distribution & accuracy", style={"fontWeight": "600", "fontSize": "14px"}),
-        html.P("Stacked bar: correct (green) vs misclassified (red) per class", style={"fontSize": "12px", "color": "#888", "marginBottom": "6px"}),
-        dcc.Graph(id="class-dist-bar", config={"displayModeBar": False}, style={"height": "280px"})
-    ])), width=4),
+
     dbc.Col(dbc.Card(dbc.CardBody([
         html.H6("Train vs validation accuracy", style={"fontWeight": "600", "fontSize": "14px"}),
         html.P("Per-class accuracy on train (80%) vs validation (20%)", style={"fontSize": "12px", "color": "#888", "marginBottom": "6px"}),
@@ -121,13 +118,12 @@ overview_row = dbc.Row([
         html.P("True class (rows) vs predicted class (columns)", style={"fontSize": "12px", "color": "#888", "marginBottom": "6px"}),
         dcc.Graph(id="confusion-matrix", config={"displayModeBar": False}, style={"height": "280px"})
     ])), width=4),
+    dbc.Col(dbc.Card(dbc.CardBody([
+        html.H6("Review queue", style={"fontWeight": "600", "fontSize": "14px"}),
+        html.P("Images ranked in order of descending uncertainty. Click to inspect.", style={"fontSize": "12px", "color": "#888", "marginBottom": "6px"}),
+        html.Div(id="ranking-table", style={"maxHeight": "280px", "overflowY": "auto", "fontSize": "12px"})
+    ])), width=4),
 ], className="mb-3")
-
-ranking_section = dbc.Card(dbc.CardBody([
-    html.H6("Review queue (active learning)", style={"fontWeight": "600", "fontSize": "14px"}),
-    html.P("Images ranked by uncertainty (margin sampling). Most uncertain first.", style={"fontSize": "12px", "color": "#888", "marginBottom": "6px"}),
-    html.Div(id="ranking-table", style={"maxHeight": "200px", "overflowY": "auto", "fontSize": "12px"})
-]), className="mb-3")
 
 scatter_view = dbc.Card(dbc.CardBody([
     html.H5("Model hidden layer projection", style={"fontWeight": "600"}),
@@ -135,7 +131,8 @@ scatter_view = dbc.Card(dbc.CardBody([
     html.Div(id="scatter-legend", style={"marginBottom": "8px"}),
     dcc.Loading(dcc.Graph(id="umap-scatter", config={"displayModeBar": True, "scrollZoom": True}, style={"height": "500px"}), type="circle"),
     html.Div(id="cluster-summary", style={"fontSize": "13px", "marginTop": "8px"})
-]))
+    ]), style={"flex": "1 1 auto", "minWidth": "0"}
+    )
 
 side_panel = html.Div(id="side-panel", style=PANEL_HIDDEN, children=[
     html.Div([
@@ -179,19 +176,22 @@ app.layout = html.Div([
     header,
     dbc.Container([
         dbc.Row([
-            dbc.Col(sidebar, width=2, style={"paddingRight": "8px"}),
+            dbc.Col(
+                html.Div(sidebar, id="sidebar-wrapper", style={"width": "100%", "transition": "all 0.3s ease"}),
+                id="sidebar-col",
+                width=2,
+                style={"paddingRight": "0px", "transition": "all 0.3s ease"}
+            ),
             dbc.Col([
-                overview_row, ranking_section,
-                html.Div([
-                    html.Div(scatter_view, id="scatter-wrapper", style={"flex": "1", "minWidth": "0"}),
-                    side_panel
-                ], style={"display": "flex", "gap": "0"})
-            ], width=10, style={"paddingLeft": "8px"})
+                overview_row,
+                html.Div([scatter_view, side_panel], style={"display": "flex", "gap": "0", "flex": "1 1 auto", "transition": "all 0.3s ease"})
+            ], width=10, style={"paddingLeft": "8px", "flex": "1"})
         ], className="mt-3")
     ], fluid=True),
     dcc.Store(id="selected-image-id", data=None),
     dcc.Store(id="current-embeddings", data=None),
     dcc.Store(id="panel-open", data=False),
+    dcc.Store(id="sidebar-open", data=True),
 ])
 
 
@@ -200,7 +200,23 @@ app.layout = html.Div([
 # ═══════════════════════════════════════════════════════════════════════════
 
 @callback(
-    Output("class-dist-bar", "figure"), Output("train-test-bar", "figure"),
+    Output("sidebar-wrapper", "style"),
+    Output("sidebar-open", "data"),
+    Input("toggle-sidebar-btn", "n_clicks"),
+    State("sidebar-open", "data"),
+    prevent_initial_call=True
+)
+def toggle_sidebar(n, is_open):
+    if is_open:
+        # Hide sidebar
+        return {"width": "0px", "overflow": "hidden", "transition": "all 0.3s ease"}, False
+    else:
+        # Show sidebar
+        return {"width": "100%", "transition": "all 0.3s ease"}, True
+    
+
+@callback(
+    Output("train-test-bar", "figure"),
     Output("confusion-matrix", "figure"), Output("ranking-table", "children"),
     Input("class-filter", "value"), Input("confidence-slider", "value"))
 def update_overview(classes, conf_range):
@@ -210,7 +226,7 @@ def update_overview(classes, conf_range):
     if len(df) == 0:
         e = go.Figure()
         e.add_annotation(text="No data", showarrow=False)
-        return e, e, e, "No data."
+        return e, e, "No data."
 
     total = len(df)
 
@@ -275,6 +291,8 @@ def update_overview(classes, conf_range):
     # Ranking table
     dr = compute_uncertainty(df).sort_values("uncertainty", ascending=False).head(20)
     rows = [html.Tr([
+        html.Td(r["image_id"][:15], id={"type": "queue-item", "index": r["image_id"]},
+                style={"fontFamily": "monospace", "cursor": "pointer"}),
         html.Td(r["image_id"][:15], style={"fontFamily": "monospace"}),
         html.Td(f"{r['uncertainty']:.2f}"),
         html.Td(CLASS_DISPLAY[int(r["true_class"])]),
@@ -287,8 +305,7 @@ def update_overview(classes, conf_range):
         html.Tbody(rows)
     ], style={"width": "100%"}, className="table table-sm table-hover")
 
-    return dist_fig, tt_fig, cmf, tbl
-
+    return tt_fig, cmf, tbl
 
 @callback(
     Output("umap-scatter", "figure"), Output("cluster-summary", "children"),
@@ -348,9 +365,9 @@ def update_scatter(classes, mo, cr, cm):
     Output("side-panel", "style"), Output("panel-open", "data"), Output("selected-image-id", "data"),
     Output("image-container", "children"), Output("image-metadata", "children"),
     Output("confidence-bars", "figure"), Output("annotation-canvas", "figure"), Output("search-status", "children"),
-    Input("umap-scatter", "clickData"), Input("close-panel-btn", "n_clicks"), Input("search-btn", "n_clicks"),
+    Input("umap-scatter", "clickData"), Input("close-panel-btn", "n_clicks"), Input("search-btn", "n_clicks"), Input({"type": "queue-item", "index": dash.ALL}, "n_clicks"),
     State("image-search", "value"), State("lime-opacity", "value"), State("panel-open", "data"), State("brush-color", "value"))
-def handle_panel(cd, cc, sc, sv, lo, po, bc):
+def handle_panel(cd, cc, sc, qc, sv, lo, po, bc):
     t = ctx.triggered_id
     n = (no_update,) * 8
     if t == "close-panel-btn":
@@ -369,6 +386,14 @@ def handle_panel(cd, cc, sc, sv, lo, po, bc):
         iid = row["image_id"]
         r = _build_panel(iid, row, lo, bc)
         return PANEL_VISIBLE, True, iid, *r, f"Found: {iid}"
+    
+    if isinstance(t, dict) and t.get("type") == "queue-item":
+        iid = t["index"]
+        df = load_data()
+        row = df[df["image_id"] == iid].iloc[0]
+        r = _build_panel(iid, row, lo, bc)
+        return PANEL_VISIBLE, True, iid, *r, f"Selected: {iid}"
+
     if cd is None:
         return *n,
     p = cd["points"][0]
