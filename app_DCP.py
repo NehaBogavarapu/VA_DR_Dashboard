@@ -20,7 +20,7 @@ from PIL import Image
 import heapq
 
 from data_pipeline_DCP import (
-    load_data, get_umap_embeddings, run_kmeans,
+    load_data, run_kmeans,
     get_misclassified, filter_by_confidence,
     CLASS_NAMES, CLASS_DISPLAY,
 )
@@ -83,7 +83,6 @@ sidebar = dbc.Card(dbc.CardBody([
     html.H6("Filters", className="mb-3", style={"fontWeight": "600"}),
     html.Label("Show classes", style={"fontSize": "13px"}),
     dcc.Checklist(id="class-filter", options=[{"label": f" {CLASS_DISPLAY[c]}", "value": c} for c in range(3)], value=[0, 1, 2], inline=False, style={"fontSize": "13px", "marginBottom": "12px"}),
-    dbc.Switch(id="misclassified-only", label="Misclassified only", value=False, style={"fontSize": "13px", "marginBottom": "12px"}),
     html.Label("Confidence range", style={"fontSize": "13px"}),
     dcc.RangeSlider(id="confidence-slider", min=0, max=1, step=0.05, value=[0.0, 1.0], marks={0: "0", 0.5: "0.5", 1: "1"}, tooltip={"placement": "bottom"}),
     html.Hr(),
@@ -316,14 +315,17 @@ def update_overview(classes, conf_range):
     return tt_fig, cmf, tbl
 
 @callback(
-    Output("umap-scatter", "figure"), Output("cluster-summary", "children"),
-    Output("current-embeddings", "data"), Output("scatter-legend", "children"),
-    Input("class-filter", "value"), Input("misclassified-only", "value"),
-    Input("confidence-slider", "value"), Input("color-mode", "value"))
-def update_scatter(classes, mo, cr, cm):
+    Output("umap-scatter", "figure"),
+    Output("cluster-summary", "children"),
+    Output("current-embeddings", "data"),
+    Output("scatter-legend", "children"),
+    Input("class-filter", "value"),
+    Input("confidence-slider", "value"),
+    Input("color-mode", "value")
+)
+def update_scatter(classes, cr, cm):
     df = load_data()
-    if mo:
-        df = get_misclassified(df)
+
     df = df[df["true_class"].isin(classes)]
     df = filter_by_confidence(df, cr[0], cr[1])
     if len(df) < 2:
@@ -331,10 +333,7 @@ def update_scatter(classes, mo, cr, cm):
         e.add_annotation(text="Not enough data", showarrow=False)
         return e, "", None, []
 
-    coords = get_umap_embeddings(df)
-    df = df.copy()
-    df["u1"] = coords[:, 0]
-    df["u2"] = coords[:, 1]
+    df = df.copy()  # UMAP already in df
     df["mis"] = df["pred_class"] != df["true_class"]
 
     fig = go.Figure()
@@ -344,29 +343,43 @@ def update_scatter(classes, mo, cr, cm):
     if cm == "true_class":
         for c in sorted(df["true_class"].unique()):
             s = df[df["true_class"] == c]
-            fig.add_trace(go.Scatter(x=s["u1"], y=s["u2"], mode="markers",
-                                      marker=dict(size=8, color=CLASS_COLORS[c], line=dict(width=0.5, color="white"), opacity=0.8),
-                                      name=CLASS_DISPLAY[c], customdata=s[cd].values, hovertemplate=ht))
+            fig.add_trace(go.Scatter(
+                x=s["u1"], y=s["u2"], mode="markers",
+                marker=dict(size=8, color=CLASS_COLORS[c], line=dict(width=0.5, color="white")),
+                name=CLASS_DISPLAY[c], customdata=s[cd].values, hovertemplate=ht
+            ))
+
     elif cm == "pred_class":
         for c in sorted(df["pred_class"].unique()):
             s = df[df["pred_class"] == c]
-            fig.add_trace(go.Scatter(x=s["u1"], y=s["u2"], mode="markers",
-                                      marker=dict(size=8, color=CLASS_COLORS[c], line=dict(width=0.5, color="white"), opacity=0.8),
-                                      name=f"Pred {CLASS_DISPLAY[c]}", customdata=s[cd].values, hovertemplate=ht))
-    else:
-        for w, l, c in [(False, "Correct", "#2ecc71"), (True, "Misclassified", "#e74c3c")]:
-            s = df[df["mis"] == w]
-            if len(s):
-                fig.add_trace(go.Scatter(x=s["u1"], y=s["u2"], mode="markers",
-                                          marker=dict(size=8, color=c, line=dict(width=0.5, color="white"), opacity=0.8),
-                                          name=l, customdata=s[cd].values, hovertemplate=ht))
+            fig.add_trace(go.Scatter(
+                x=s["u1"], y=s["u2"], mode="markers",
+                marker=dict(size=8, color=CLASS_COLORS[c], line=dict(width=0.5, color="white")),
+                name=f"Pred {CLASS_DISPLAY[c]}", customdata=s[cd].values, hovertemplate=ht
+            ))
 
-    fig.update_layout(template="plotly_white", margin=dict(l=20, r=20, t=30, b=20),
-                       xaxis=dict(title="UMAP 1", showgrid=False), yaxis=dict(title="UMAP 2", showgrid=False),
-                       legend=dict(orientation="h", yanchor="bottom", y=-0.15), clickmode="event+select")
+    else:  # misclassification
+        for mis, label, color in [(False, "Correct", "#2ecc71"), (True, "Misclassified", "#e74c3c")]:
+            s = df[df["mis"] == mis]
+            fig.add_trace(go.Scatter(
+                x=s["u1"], y=s["u2"], mode="markers",
+                marker=dict(size=8, color=color, line=dict(width=0.5, color="white")),
+                name=label, customdata=s[cd].values, hovertemplate=ht
+            ))
+
+    fig.update_layout(
+        template="plotly_white",
+        margin=dict(l=20, r=20, t=30, b=20),
+        xaxis=dict(title="UMAP 1", showgrid=False),
+        yaxis=dict(title="UMAP 2", showgrid=False),
+        legend=dict(orientation="h", yanchor="bottom", y=-0.15),
+        clickmode="event+select"
+    )
+
     t = len(df)
     m = df["mis"].sum()
-    return fig, f"{t} images · {m} misclassified ({m / t:.0%})", df[["image_id", "u1", "u2"]].to_json(), make_legend_for_mode(cm)
+
+    return fig, f"{t} images · {m} misclassified ({m/t:.0%})", df[["image_id", "u1", "u2"]].to_json(), make_legend_for_mode(cm)
 
 
 @callback(
