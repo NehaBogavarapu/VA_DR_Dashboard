@@ -75,7 +75,6 @@ def make_legend_for_mode(mode):
 # ═══════════════════════════════════════════════════════════════════════════
 
 header = dbc.Navbar(dbc.Container([
-    dbc.Button("☰ Filters", id="toggle-sidebar-btn", size="sm", color="secondary"),
     dbc.NavbarBrand("DCP‑VA  Dog / Cat / Panda Visual Analytics", style={"fontWeight": "600"}),
     html.Span("ResNet‑50 · UMAP + LIME", style={"color": "rgba(255,255,255,0.7)", "fontSize": "13px"})
 ], fluid=True), color="dark", dark=True, sticky="top")
@@ -131,8 +130,7 @@ scatter_view = dbc.Card(dbc.CardBody([
     html.Div(id="scatter-legend", style={"marginBottom": "8px"}),
     dcc.Loading(dcc.Graph(id="umap-scatter", config={"displayModeBar": True, "scrollZoom": True}, style={"height": "500px"}), type="circle"),
     html.Div(id="cluster-summary", style={"fontSize": "13px", "marginTop": "8px"})
-    ]), style={"flex": "1 1 auto", "minWidth": "0"}
-    )
+]))
 
 side_panel = html.Div(id="side-panel", style=PANEL_HIDDEN, children=[
     html.Div([
@@ -176,22 +174,19 @@ app.layout = html.Div([
     header,
     dbc.Container([
         dbc.Row([
-            dbc.Col(
-                html.Div(sidebar, id="sidebar-wrapper", style={"width": "100%", "transition": "all 0.3s ease"}),
-                id="sidebar-col",
-                width=2,
-                style={"paddingRight": "0px", "transition": "all 0.3s ease"}
-            ),
+            dbc.Col(sidebar, width=2, style={"paddingRight": "8px"}),
             dbc.Col([
-                overview_row,
-                html.Div([scatter_view, side_panel], style={"display": "flex", "gap": "0", "flex": "1 1 auto", "transition": "all 0.3s ease"})
-            ], width=10, style={"paddingLeft": "8px", "flex": "1"})
+                overview_row, #ranking_section,
+                html.Div([
+                    html.Div(scatter_view, id="scatter-wrapper", style={"flex": "1", "minWidth": "0"}),
+                    side_panel
+                ], style={"display": "flex", "gap": "0"})
+            ], width=10, style={"paddingLeft": "8px"})
         ], className="mt-3")
     ], fluid=True),
     dcc.Store(id="selected-image-id", data=None),
     dcc.Store(id="current-embeddings", data=None),
     dcc.Store(id="panel-open", data=False),
-    dcc.Store(id="sidebar-open", data=True),
 ])
 
 
@@ -200,22 +195,7 @@ app.layout = html.Div([
 # ═══════════════════════════════════════════════════════════════════════════
 
 @callback(
-    Output("sidebar-wrapper", "style"),
-    Output("sidebar-open", "data"),
-    Input("toggle-sidebar-btn", "n_clicks"),
-    State("sidebar-open", "data"),
-    prevent_initial_call=True
-)
-def toggle_sidebar(n, is_open):
-    if is_open:
-        # Hide sidebar
-        return {"width": "0px", "overflow": "hidden", "transition": "all 0.3s ease"}, False
-    else:
-        # Show sidebar
-        return {"width": "100%", "transition": "all 0.3s ease"}, True
-    
-
-@callback(
+    # Output("class-dist-bar", "figure"), 
     Output("train-test-bar", "figure"),
     Output("confusion-matrix", "figure"), Output("ranking-table", "children"),
     Input("class-filter", "value"), Input("confidence-slider", "value"))
@@ -290,20 +270,48 @@ def update_overview(classes, conf_range):
 
     # Ranking table
     dr = compute_uncertainty(df).sort_values("uncertainty", ascending=False).head(20)
-    rows = [html.Tr([
-        html.Td(r["image_id"][:15], id={"type": "queue-item", "index": r["image_id"]},
-                style={"fontFamily": "monospace", "cursor": "pointer"}),
-        html.Td(r["image_id"][:15], style={"fontFamily": "monospace"}),
-        html.Td(f"{r['uncertainty']:.2f}"),
-        html.Td(CLASS_DISPLAY[int(r["true_class"])]),
-        html.Td(CLASS_DISPLAY[int(r["pred_class"])]),
-        html.Td(dbc.Badge("✗" if r["pred_class"] != r["true_class"] else "✓",
-                           color="danger" if r["pred_class"] != r["true_class"] else "success", style={"fontSize": "10px"}))
-    ], style={"backgroundColor": "#fff5f5" if r["pred_class"] != r["true_class"] else ""}) for _, r in dr.iterrows()]
+
+    rows = []
+    for _, r in dr.iterrows():
+        full_id = r["image_id"]
+        short_id = full_id[:15] + "…" if len(full_id) > 15 else full_id
+
+        row = html.Tr(
+            [
+                html.Td(short_id, style={"fontFamily": "monospace"}),
+                html.Td(f"{r['uncertainty']:.2f}"),
+                html.Td(CLASS_DISPLAY[int(r["true_class"])]),
+                html.Td(CLASS_DISPLAY[int(r["pred_class"])]),
+                html.Td(
+                    dbc.Badge(
+                        "✗" if r["pred_class"] != r["true_class"] else "✓",
+                        color="danger" if r["pred_class"] != r["true_class"] else "success",
+                        style={"fontSize": "10px"}
+                    )
+                )
+            ],
+            id={"type": "queue-item", "index": full_id},   # ← entire row is clickable
+            n_clicks=0,
+            style={
+                "cursor": "pointer",
+                "backgroundColor": "#fff5f5" if r["pred_class"] != r["true_class"] else "",
+            }
+        )
+
+        rows.append(row)
+
+
     tbl = html.Table([
-        html.Thead(html.Tr([html.Th("Image ID"), html.Th("Uncertainty"), html.Th("True"), html.Th("Pred"), html.Th("")])),
+        html.Thead(html.Tr([
+            html.Th("Image ID"),
+            html.Th("Uncertainty"),
+            html.Th("True"),
+            html.Th("Pred"),
+            html.Th("")
+        ])),
         html.Tbody(rows)
     ], style={"width": "100%"}, className="table table-sm table-hover")
+
 
     return tt_fig, cmf, tbl
 
