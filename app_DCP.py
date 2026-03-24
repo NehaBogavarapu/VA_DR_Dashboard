@@ -17,6 +17,7 @@ import json
 import base64
 from io import BytesIO
 from PIL import Image
+import heapq
 
 from data_pipeline_DCP import (
     load_data, get_umap_embeddings, run_kmeans,
@@ -44,13 +45,16 @@ PANEL_VISIBLE = {"width": "400px", "minWidth": "400px", "overflowY": "auto", "ma
 
 
 def compute_uncertainty(df):
-    uncertainties = []
-    for _, row in df.iterrows():
-        probs = sorted(json.loads(row["class_confidences"]), reverse=True)
-        margin = probs[0] - probs[1] if len(probs) >= 2 else probs[0]
-        uncertainties.append(round(1.0 - margin, 4))
     df = df.copy()
-    df["uncertainty"] = uncertainties
+
+    def calc(conf_str):
+        probs = json.loads(conf_str)
+        if len(probs) < 2:
+            return 0.0
+        top2 = heapq.nlargest(2, probs)
+        return round(1.0 - (top2[0] - top2[1]), 4)
+
+    df["uncertainty"] = df["class_confidences"].apply(calc)
     return df
 
 
