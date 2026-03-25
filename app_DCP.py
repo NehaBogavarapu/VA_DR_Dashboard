@@ -49,14 +49,19 @@ BRUSH_COLORS = {
     "background": {"fill": "rgba(0,200,0,0.3)", "line": "green"},
 }
 annotation_store = AnnotationStore()
-PANEL_HIDDEN = {"width": "0px", "minWidth": "0px", "overflow": "hidden", 
-                "transition": "width 0.3s ease", "padding": "0", "flexShrink": "0"}
-PANEL_VISIBLE = {"width": "400px", "minWidth": "400px", "overflowY": "auto", 
-                 "maxHeight": "calc(100vh - 80px)", "paddingLeft": "12px", 
-                 "flexShrink": "0", "transition": "width 0.3s ease", 
-                 "backgroundColor": "white", "border": f"1px solid {THEME['light']}",
-                 "borderRadius": "10px", "boxShadow": "0 2px 6px rgba(0,0,0,0.05)"}
-
+PANEL_BASE = {
+    "width": "400px",
+    "minWidth": "400px",
+    "overflowY": "auto",
+    "maxHeight": "calc(100vh - 80px)",
+    "paddingLeft": "12px",
+    "flexShrink": "0",
+    "backgroundColor": "white",
+    "border": f"1px solid {THEME['light']}",
+    "borderRadius": "10px",
+    "boxShadow": "0 2px 6px rgba(0,0,0,0.05)",
+    "padding": "12px",
+}
 
 def compute_uncertainty(df):
     df = df.copy()
@@ -182,49 +187,45 @@ scatter_view = dbc.Card(dbc.CardBody([
         "boxShadow": "0 2px 6px rgba(0,0,0,0.05)"
     })
 
-side_panel = html.Div(id="side-panel", style={
-        **PANEL_HIDDEN,  
-        "backgroundColor": "white",
-        "border": f"1px solid {THEME['light']}",
-        "borderRadius": "10px",
-        "boxShadow": "0 2px 6px rgba(0,0,0,0.05)",
-        "padding": "12px"
-    }, 
-    children=[html.Div([
-        html.Button("✕", id="close-panel-btn", style={"float": "right", "border": "none", "background": "none", "fontSize": "18px", "cursor": "pointer"}),
-        html.H6("Image Inspector", style={"fontWeight": "600"}),
-    ]),
-    html.Hr(),
-    html.Label("LIME overlay opacity", style={"fontSize": "12px"}),
-    dcc.Slider(id="lime-opacity", min=0, max=1, step=0.1, value=0.6, marks={0: "0", 0.5: "0.5", 1: "1"}),
-    html.Div(id="lime-legend", children=[
-        html.Span("LIME: ", style={"fontWeight": "600", "fontSize": "11px"}),
-        html.Span("■", style={"color": "#00FFEE", "fontSize": "14px"}), html.Span(" supports ", style={"fontSize": "11px"}),
-        html.Span("■", style={"color": "#FFD600", "fontSize": "14px"}), html.Span(" opposes", style={"fontSize": "11px"}),
-    ], style={"marginBottom": "6px"}),
-    html.Div(id="image-container", style={"height": "280px", "position": "relative", "marginBottom": "8px", "backgroundColor": "#111", "borderRadius": "6px", "overflow": "hidden"}),
-    html.Div(id="image-metadata"),
-    html.H6("Per-class confidence", style={"fontWeight": "600", "fontSize": "13px"}),
-    dcc.Graph(id="confidence-bars", config={"displayModeBar": False}, style={"height": "120px"}),
-    html.Hr(),
-    html.H6("Annotate", style={"fontWeight": "600", "fontSize": "13px"}),
-    dcc.Graph(id="annotation-canvas", config={"modeBarButtonsToAdd": ["drawclosedpath", "drawrect", "drawcircle", "eraseshape"]}, style={"height": "280px"}),
-    dbc.Row([
-        dbc.Col([html.Label("Brush colour", style={"fontSize": "12px"}),
-                 dcc.Dropdown(id="brush-color", options=[
-                     {"label": "Important (red)", "value": "important"},
-                     {"label": "Artefact (blue)", "value": "artefact"},
-                     {"label": "Background (green)", "value": "background"},
-                 ], value="important", clearable=False, style={"fontSize": "12px"})], width=6),
-        dbc.Col([html.Label("Correct class", style={"fontSize": "12px"}),
-                 dcc.Dropdown(id="correct-class", options=[{"label": CLASS_DISPLAY[c], "value": c} for c in range(3)],
-                              placeholder="Select…", clearable=False, style={"fontSize": "12px"})], width=6)
-    ], className="mt-2"),
-    dbc.Button("Save annotation", id="save-annotation-btn", style={"backgroundColor": ACCENT, "border": "none"}, size="sm", className="w-100 mt-2"),
-    html.Div(id="save-status", style={"fontSize": "11px", "marginTop": "4px"}),
-    html.Hr(),
-    html.H6("Annotation log", style={"fontWeight": "600", "fontSize": "13px"}),
-    html.Div(id="annotation-log", style={"maxHeight": "150px", "overflowY": "auto"}),
+side_panel = html.Div(
+            id="side-panel", 
+            style={**PANEL_BASE},   # base styling only
+            className="hidden",     # start hidden
+            children=[html.Div([
+                html.Button("✕", id="close-panel-btn", style={"float": "right", "border": "none", "background": "none", "fontSize": "18px", "cursor": "pointer"}),
+                html.H6("Image Inspector", style={"fontWeight": "600"}),
+            ]),
+            html.Hr(),
+            html.Label("LIME overlay opacity", style={"fontSize": "12px"}),
+            dcc.Slider(id="lime-opacity", min=0, max=1, step=0.1, value=0.6, marks={0: "0", 0.5: "0.5", 1: "1"}),
+            html.Div(id="lime-legend", children=[
+                html.Span("LIME: ", style={"fontWeight": "600", "fontSize": "11px"}),
+                html.Span("■", style={"color": "#00FFEE", "fontSize": "14px"}), html.Span(" supports ", style={"fontSize": "11px"}),
+                html.Span("■", style={"color": "#FFD600", "fontSize": "14px"}), html.Span(" opposes", style={"fontSize": "11px"}),
+            ], style={"marginBottom": "6px"}),
+            html.Div(id="image-container", style={"height": "280px", "position": "relative", "marginBottom": "8px", "backgroundColor": "#111", "borderRadius": "6px", "overflow": "hidden"}),
+            html.Div(id="image-metadata"),
+            html.H6("Per-class confidence", style={"fontWeight": "600", "fontSize": "13px"}),
+            dcc.Graph(id="confidence-bars", config={"displayModeBar": False}, style={"height": "120px"}),
+            html.Hr(),
+            html.H6("Annotate", style={"fontWeight": "600", "fontSize": "13px"}),
+            dcc.Graph(id="annotation-canvas", config={"modeBarButtonsToAdd": ["drawclosedpath", "drawrect", "drawcircle", "eraseshape"]}, style={"height": "280px"}),
+            dbc.Row([
+                dbc.Col([html.Label("Brush colour", style={"fontSize": "12px"}),
+                        dcc.Dropdown(id="brush-color", options=[
+                            {"label": "Important (red)", "value": "important"},
+                            {"label": "Artefact (blue)", "value": "artefact"},
+                            {"label": "Background (green)", "value": "background"},
+                        ], value="important", clearable=False, style={"fontSize": "12px"})], width=6),
+                dbc.Col([html.Label("Correct class", style={"fontSize": "12px"}),
+                        dcc.Dropdown(id="correct-class", options=[{"label": CLASS_DISPLAY[c], "value": c} for c in range(3)],
+                                    placeholder="Select…", clearable=False, style={"fontSize": "12px"})], width=6)
+            ], className="mt-2"),
+            dbc.Button("Save annotation", id="save-annotation-btn", style={"backgroundColor": ACCENT, "border": "none"}, size="sm", className="w-100 mt-2"),
+            html.Div(id="save-status", style={"fontSize": "11px", "marginTop": "4px"}),
+            html.Hr(),
+            html.H6("Annotation log", style={"fontWeight": "600", "fontSize": "13px"}),
+            html.Div(id="annotation-log", style={"maxHeight": "150px", "overflowY": "auto"}),
 ])
 
 app.layout = html.Div([
@@ -237,7 +238,7 @@ app.layout = html.Div([
                 html.Div([
                     html.Div(scatter_view, id="scatter-wrapper", style={"flex": "1", "minWidth": "0"}),
                     side_panel
-                ], style={"display": "flex", "gap": "0"})
+                ], style={"display": "flex", "gap": "20px"})
             ], width=10, style={"paddingLeft": "8px"})
         ], className="mt-3")
     ], fluid=True),
@@ -441,7 +442,7 @@ def update_scatter(classes, cr, cm):
 
 
 @callback(
-    Output("side-panel", "style"), Output("panel-open", "data"), Output("selected-image-id", "data"),
+    Output("side-panel", "className"), Output("panel-open", "data"), Output("selected-image-id", "data"),
     Output("image-container", "children"), Output("image-metadata", "children"),
     Output("confidence-bars", "figure"), Output("annotation-canvas", "figure"), Output("search-status", "children"),
     Input("umap-scatter", "clickData"), Input("close-panel-btn", "n_clicks"), Input("search-btn", "n_clicks"), Input({"type": "queue-item", "index": dash.ALL}, "n_clicks"),
@@ -450,7 +451,7 @@ def handle_panel(cd, cc, sc, qc, sv, lo, po, bc):
     t = ctx.triggered_id
     n = (no_update,) * 8
     if t == "close-panel-btn":
-        return PANEL_HIDDEN, False, None, no_update, no_update, no_update, no_update, ""
+        return "hidden", False, None, no_update, no_update, no_update, no_update, ""
     if t == "search-btn":
         if not sv or not sv.strip():
             return *n[:7], "Enter an image ID."
@@ -464,17 +465,17 @@ def handle_panel(cd, cc, sc, qc, sv, lo, po, bc):
         row = m.iloc[0]
         iid = row["image_id"]
         r = _build_panel(iid, row, lo, bc)
-        return PANEL_VISIBLE, True, iid, *r, f"Found: {iid}"
+        return "visible", True, iid, *r, f"Found: {iid}"
     
     if isinstance(t, dict) and t.get("type") == "queue-item":
         iid = t["index"]
         df = load_data()
         row = df[df["image_id"] == iid].iloc[0]
         r = _build_panel(iid, row, lo, bc)
-        return PANEL_VISIBLE, True, iid, *r, f"Selected: {iid}"
+        return "visible", True, iid, *r, f"Selected: {iid}"
 
     if cd is None:
-        return PANEL_HIDDEN, False, None, no_update, no_update, no_update, no_update, ""
+        return "hidden", False, None, no_update, no_update, no_update, no_update, ""
 
     
     p = cd["points"][0]
@@ -482,7 +483,7 @@ def handle_panel(cd, cc, sc, qc, sv, lo, po, bc):
     df = load_data()
     row = df[df["image_id"] == iid].iloc[0]
     r = _build_panel(iid, row, lo, bc)
-    return PANEL_VISIBLE, True, iid, *r, ""
+    return "visible", True, iid, *r, ""
 
 
 def _build_panel(image_id, row, lime_opacity, brush_color):

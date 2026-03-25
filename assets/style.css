@@ -86,3 +86,23 @@
     box-shadow: 0 0 0 3px rgba(165, 37, 52, 0.4) !important;
     border-color: #A52534 !important;
 }
+
+/* Base panel state (hidden, no space taken) */
+#side-panel.hidden {
+    display: none;
+}
+
+/* Visible state (takes space + animates) */
+#side-panel.visible {
+    display: block;
+    transform: translateX(0);
+    opacity: 1;
+    transition: transform 0.35s ease, opacity 0.25s ease;
+}
+
+/* Prepare the panel for animation */
+#side-panel {
+    transform: translateX(100%);
+    opacity: 0;
+    will-change: transform, opacity;
+}
