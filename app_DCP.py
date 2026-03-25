@@ -31,6 +31,13 @@ from retrain_DCP import retrain_with_annotations
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.FLATLY], suppress_callback_exceptions=True)
 app.title = "DCP-VA: Dog / Cat / Panda Visual Analytics"
 
+# ── Custom theme ──────────────────────────────────────────────────────────
+THEME = {
+    "bg": "#fffaf8",
+    "light": "#9ab2c8",
+    "dark": "#33475c",
+}
+
 # ── Colour scheme ──────────────────────────────────────────────────────────
 CLASS_COLORS = {0: "#e74c3c", 1: "#3498db", 2: "#2ecc71"}  # Cat=red, Dog=blue, Panda=green
 MISCLASS_COLORS = {"Correct": "#2ecc71", "Misclassified": "#e74c3c"}
@@ -74,10 +81,21 @@ def make_legend_for_mode(mode):
 #  LAYOUT
 # ═══════════════════════════════════════════════════════════════════════════
 
-header = dbc.Navbar(dbc.Container([
-    dbc.NavbarBrand("DCP‑VA  Dog / Cat / Panda Visual Analytics", style={"fontWeight": "600"}),
-    html.Span("ResNet‑50 · UMAP + LIME", style={"color": "rgba(255,255,255,0.7)", "fontSize": "13px"})
-], fluid=True), color="dark", dark=True, sticky="top")
+header = dbc.Navbar(
+    dbc.Container([
+        dbc.NavbarBrand(
+            "DCP-VA  Dog / Cat / Panda Visual Analytics",
+            style={"fontWeight": "600", "color": "white"}
+        ),
+        html.Span(
+            "ResNet-50 · UMAP + LIME",
+            style={"color": "rgba(255,255,255,0.7)", "fontSize": "13px"}
+        )
+    ], fluid=True),
+    style={"backgroundColor": THEME["dark"]},
+    dark=True,
+    sticky="top"
+)
 
 sidebar = dbc.Card(dbc.CardBody([
     html.H6("Filters", className="mb-3", style={"fontWeight": "600"}),
@@ -102,7 +120,9 @@ sidebar = dbc.Card(dbc.CardBody([
     html.Hr(),
     dbc.Button("Retrain model with annotations", id="retrain-btn", color="success", className="w-100", disabled=True),
     html.Div(id="retrain-status", style={"fontSize": "12px", "marginTop": "6px"}),
-]), style={"height": "100%"})
+]), style={"height": "100%", "backgroundColor": "white",
+        "border": f"1px solid {THEME['light']}",
+        "borderRadius": "10px"})
 
 overview_row = dbc.Row([
 
@@ -186,7 +206,7 @@ app.layout = html.Div([
     dcc.Store(id="selected-image-id", data=None),
     dcc.Store(id="current-embeddings", data=None),
     dcc.Store(id="panel-open", data=False),
-])
+], style={"backgroundColor": THEME["bg"]})
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -416,7 +436,9 @@ def handle_panel(cd, cc, sc, qc, sv, lo, po, bc):
         return PANEL_VISIBLE, True, iid, *r, f"Selected: {iid}"
 
     if cd is None:
-        return *n,
+        return PANEL_HIDDEN, False, None, no_update, no_update, no_update, no_update, ""
+
+    
     p = cd["points"][0]
     iid = p["customdata"][0]
     df = load_data()
