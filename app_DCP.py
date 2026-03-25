@@ -10,6 +10,7 @@ AMV10 Visual Analytics — Group 14
 
 import dash
 from dash import dcc, html, Input, Output, State, callback, no_update, ctx
+from dash.exceptions import PreventUpdate
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 import numpy as np
@@ -52,8 +53,8 @@ annotation_store = AnnotationStore()
 PANEL_BASE = {
     "width": "400px",
     "minWidth": "400px",
-    "overflowY": "auto",
-    "maxHeight": "calc(100vh - 80px)",
+    # "overflowY": "auto",
+    # "maxHeight": "calc(100vh - 10px)",
     "paddingLeft": "12px",
     "flexShrink": "0",
     "backgroundColor": "white",
@@ -132,9 +133,11 @@ sidebar = dbc.Card(dbc.CardBody([
     html.Hr(),
     dbc.Button("Retrain model with annotations", id="retrain-btn", style={"backgroundColor": ACCENT, "border": "none"}, className="w-100", disabled=True),
     html.Div(id="retrain-status", style={"fontSize": "12px", "marginTop": "6px"}),
-]), style={"height": "100%", "backgroundColor": "white",
-        "border": f"1px solid {THEME['light']}",
-        "borderRadius": "10px"})
+]), style={"maxHeight": "calc(100vh - 100px)",
+         "overflowY": "auto", 
+         "backgroundColor": "white",
+         "border": f"1px solid {THEME['light']}",
+         "borderRadius": "10px"})
 
 overview_row = dbc.Row([
 
@@ -152,7 +155,15 @@ overview_row = dbc.Row([
     dbc.Col(dbc.Card(dbc.CardBody([
         html.H6("Confusion matrix", style={"fontWeight": "600", "fontSize": "14px"}),
         html.P("True class (rows) vs predicted class (columns)", style={"fontSize": "12px", "color": "#888", "marginBottom": "6px"}),
-        dcc.Graph(id="confusion-matrix", config={"displayModeBar": False}, style={"height": "280px"})
+        dcc.Graph(id="confusion-matrix", 
+                  config={"displayModeBar": False,
+                            "scrollZoom": False,
+                            "doubleClick": False,
+                            "staticPlot": False,
+                            "modeBarButtonsToRemove": ["zoom2d", "pan2d", "select2d", "lasso2d"],
+                        },
+                    style={"height": "280px", "cursor": "pointer"}
+)
     ]),
     style={
         "backgroundColor": "white",
@@ -177,7 +188,7 @@ scatter_view = dbc.Card(dbc.CardBody([
     html.H5("Model hidden layer projection", style={"fontWeight": "600"}),
     html.P("Each dot is how the network sees an image (last hidden layer → UMAP). Click to inspect.", style={"fontSize": "13px", "color": "#666"}),
     html.Div(id="scatter-legend", style={"marginBottom": "8px"}),
-    dcc.Loading(dcc.Graph(id="umap-scatter", config={"displayModeBar": True, "scrollZoom": True}, style={"height": "500px"}), type="circle"),
+    dcc.Loading(dcc.Graph(id="umap-scatter", config={"displayModeBar": True, "scrollZoom": True}, style={"height": "300px"}), type="circle"),
     html.Div(id="cluster-summary", style={"fontSize": "13px", "marginTop": "8px"})
     ]),
     style={
@@ -189,7 +200,7 @@ scatter_view = dbc.Card(dbc.CardBody([
 
 side_panel = html.Div(
             id="side-panel", 
-            style={**PANEL_BASE},   # base styling only
+            style={**PANEL_BASE, "position": "sticky", "top": "89px", "alignSelf": "flex-start"},   # base styling only
             className="hidden",     # start hidden
             children=[html.Div([
                 html.Button("✕", id="close-panel-btn", style={"float": "right", "border": "none", "background": "none", "fontSize": "18px", "cursor": "pointer"}),
@@ -232,19 +243,26 @@ app.layout = html.Div([
     header,
     dbc.Container([
         dbc.Row([
-            dbc.Col(sidebar, width=2, style={"paddingRight": "8px"}),
+            dbc.Col(sidebar, width=2, 
+                    style={"paddingRight": "8px",
+                            "position": "sticky",
+                            "top": "89px",    # margin from header
+                            "alignSelf": "flex-start",
+                            # "height": "calc(100vh - 10px)"
+                    }),
             dbc.Col([
                 overview_row, #ranking_section,
                 html.Div([
-                    html.Div(scatter_view, id="scatter-wrapper", style={"flex": "1", "minWidth": "0"}),
+                    html.Div(scatter_view, id="scatter-wrapper", style={"flex": "1", "minWidth": "0", "position": "sticky", "top": "89px", "alignSelf": "flex-start"}),
                     side_panel
                 ], style={"display": "flex", "gap": "20px"})
-            ], width=10, style={"paddingLeft": "8px"})
+            ], width=10, style={"paddingLeft": "8px", "paddingBottom": "89px"})
         ], className="mt-3")
     ], fluid=True),
     dcc.Store(id="selected-image-id", data=None),
     dcc.Store(id="current-embeddings", data=None),
     dcc.Store(id="panel-open", data=False),
+    dcc.Store(id="cm-filter", data=None),
 ], style={"backgroundColor": THEME["bg"]})
 
 
@@ -256,8 +274,9 @@ app.layout = html.Div([
     # Output("class-dist-bar", "figure"), 
     Output("train-test-bar", "figure"),
     Output("confusion-matrix", "figure"), Output("ranking-table", "children"),
-    Input("class-filter", "value"), Input("confidence-slider", "value"))
-def update_overview(classes, conf_range):
+    Input("class-filter", "value"), Input("confidence-slider", "value"), Input("cm-filter", "data")
+)
+def update_overview(classes, conf_range, cm_filter):
     df = load_data()
     df = df[df["true_class"].isin(classes)]
     df = filter_by_confidence(df, conf_range[0], conf_range[1])
@@ -317,17 +336,39 @@ def update_overview(classes, conf_range):
     for i, tc in enumerate(ac):
         for j, pc in enumerate(ac):
             cm[i, j] = ((df["true_class"] == tc) & (df["pred_class"] == pc)).sum()
+    
+    if cm_filter is not None:
+        df = df[(df["true_class"] == cm_filter["true"]) &
+                (df["pred_class"] == cm_filter["pred"])]
+    
     cmf = go.Figure(go.Heatmap(
-        z=cm, x=[CLASS_DISPLAY[c] for c in ac], y=[CLASS_DISPLAY[c] for c in ac],
+        z=cm, 
+        x=[CLASS_DISPLAY[c] for c in ac], 
+        y=[CLASS_DISPLAY[c] for c in ac],
         text=[[str(cm[i, j]) for j in range(n)] for i in range(n)],
-        texttemplate="%{text}", textfont=dict(size=12),
+        texttemplate="%{text}", 
+        # textfont=dict(size=12),
         colorscale=[[0, "#f8f9fa"], [0.3, "#f5c4b3"], [0.6, "#e67e22"], [1, "#A52534"]],
-        showscale=False))
-    cmf.update_layout(template="plotly_white", margin=dict(l=40, r=10, t=10, b=40),
+        showscale=False, 
+        hovertemplate="<b>%{y}</b> → <b>%{x}</b><br>Count: %{z}<extra></extra>"
+        ))
+    cmf.update_layout(dragmode=False, template="plotly_white", margin=dict(l=40, r=10, t=10, b=40),
                        xaxis=dict(title="Predicted"), yaxis=dict(title="True", autorange="reversed"), height=280)
 
+    # Apply confusion-matrix filter if active
+    if cm_filter is not None:
+        ti = ac.index(cm_filter["true"])
+        pi = ac.index(cm_filter["pred"])
+
+        cmf.add_shape(
+            type="rect",
+            x0=pi - 0.5, x1=pi + 0.5,
+            y0=ti - 0.5, y1=ti + 0.5,
+            line=dict(color="black", width=3)
+        )
+
     # Ranking table
-    dr = compute_uncertainty(df).sort_values("uncertainty", ascending=False).head(20)
+    dr = compute_uncertainty(df).sort_values("uncertainty", ascending=False)#.head(20)
 
     rows = []
     for _, r in dr.iterrows():
@@ -372,6 +413,72 @@ def update_overview(classes, conf_range):
 
 
     return tt_fig, cmf, tbl
+
+
+@callback(
+    Output("cm-filter", "data"),
+    Input("confusion-matrix", "clickData"),
+    State("cm-filter", "data"),
+    prevent_initial_call=True
+)
+def toggle_cm_filter(click, current_filter):
+    if click is None:
+        raise PreventUpdate
+    print("CLICKDATA:", click)
+
+    true_label = click["points"][0]["y"]
+    pred_label = click["points"][0]["x"]
+
+    # Reverse lookup: label → class index
+    def label_to_class(label):
+        for k, v in CLASS_DISPLAY.items():
+            if v == label:
+                return k
+        return None
+
+    true_class = label_to_class(true_label)
+    pred_class = label_to_class(pred_label)
+
+    new_filter = {"true": true_class, "pred": pred_class}
+
+    # Clicking same cell removes filter
+    if current_filter == new_filter:
+        return None
+
+    return new_filter
+
+
+@callback(
+    Output("umap-scatter", "figure", allow_duplicate=True),
+    Input("selected-image-id", "data"),
+    State("umap-scatter", "figure"),
+    prevent_initial_call=True
+)
+def highlight_selected_point(iid, fig):
+    if iid is None or fig is None:
+        raise PreventUpdate
+
+    # Reset all marker sizes/colors
+    for trace in fig["data"]:
+        trace["marker"]["size"] = 8
+        trace["marker"]["opacity"] = 0.4
+
+    # Highlight the selected point
+    for trace in fig["data"]:
+        for i, cd in enumerate(trace["customdata"]):
+            if cd[0] == iid:
+                trace["marker"]["size"] = [
+                    16 if cd[0] == iid else 8 for cd in trace["customdata"]
+                ]
+                trace["marker"]["opacity"] = [
+                    1.0 if cd[0] == iid else 0.2 for cd in trace["customdata"]
+                ]
+                break
+
+    return fig
+
+
+
 
 @callback(
     Output("umap-scatter", "figure"),
