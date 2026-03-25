@@ -36,18 +36,12 @@ CLASS_FOLDERS = {0: "cats", 1: "dogs", 2: "panda"}
 # ═══════════════════════════════════════════════════════════════════════════
 
 @lru_cache(maxsize=1)
-def load_data() -> pd.DataFrame:
+def load_data(require_umap=True) -> pd.DataFrame:
     """Load predictions.csv produced by the training notebook.
 
-    Expected columns:
-        image_id          : str
-        true_class        : int   (0=Cat, 1=Dog, 2=Panda)
-        pred_class        : int   (0=Cat, 1=Dog, 2=Panda)
-        confidence        : float (max softmax probability)
-        class_confidences : str   (JSON array of 3 floats)
-
-    Returns DataFrame with an added 'image_path' column.
+    If require_umap=False, u1/u2 are NOT required (used by precompute_UMAP.py).
     """
+
     if not os.path.exists(PREDICTIONS_PATH):
         raise FileNotFoundError(
             f"predictions.csv not found at {PREDICTIONS_PATH}\n"
@@ -56,10 +50,16 @@ def load_data() -> pd.DataFrame:
 
     df = pd.read_csv(PREDICTIONS_PATH)
 
+    # Columns that must ALWAYS exist
     required = {
-    "image_id", "true_class", "pred_class",
-    "confidence", "class_confidences",
-    "u1", "u2"}
+        "image_id", "true_class", "pred_class",
+        "confidence", "class_confidences"
+    }
+
+    # Only require UMAP columns when running the dashboard
+    if require_umap:
+        required |= {"u1", "u2"}
+
     missing = required - set(df.columns)
     if missing:
         raise ValueError(f"predictions.csv is missing columns: {missing}")
@@ -68,12 +68,8 @@ def load_data() -> pd.DataFrame:
         lambda r: _find_image(r["image_id"], int(r["true_class"])), axis=1
     )
 
-    sample = df["image_path"].iloc[0]
-    if not os.path.exists(sample):
-        print(f"WARNING: Image not found at {sample}")
-        print(f"Make sure cats/, dogs/, panda/ folders are in: {BASE_DIR}")
-
     return df
+
 
 
 def _find_image(image_id: str, true_class: int = None) -> str:
