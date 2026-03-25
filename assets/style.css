@@ -1,0 +1,88 @@
+#confidence-slider .dash-slider-track {
+    background-color: #ddd !important;
+    height: 6px !important;
+    border-radius: 3px !important;
+}
+
+#confidence-slider .dash-slider-range {
+    background-color: #A52534 !important;
+    height: 6px !important;
+    border-radius: 3px !important;
+}
+
+#confidence-slider .dash-slider-thumb {
+    background-color: white !important;
+    border: 2px solid #A52534 !important;
+    width: 14px !important;
+    height: 14px !important;
+    border-radius: 50% !important;
+    box-shadow: 0 0 0 2px #A52534 !important;
+}
+
+#confidence-slider .dash-slider-thumb:hover,
+#confidence-slider .dash-slider-thumb:focus {
+    box-shadow: 0 0 0 3px rgba(165, 37, 52, 0.4) !important;
+    border-color: #A52534 !important;
+}
+
+#color-mode input[type="radio"] {
+    accent-color: #A52534 !important;
+}
+
+#color-mode label {
+    color: #022B3E !important;
+    font-weight: 500;
+}
+
+#color-mode label:hover {
+    color: #A52534 !important;
+    cursor: pointer;
+}
+
+#class-filter .dash-options-list-option-checkbox {
+    width: 16px !important;
+    height: 16px !important;
+    accent-color: #A52534 !important;
+    cursor: pointer;
+}
+
+#class-filter .dash-options-list-option-text span {
+    color: #022B3E !important;
+    font-weight: 500;
+    margin-left: 6px;
+}
+
+#class-filter .dash-options-list-option:hover .dash-options-list-option-text span {
+    color: #A52534 !important;
+}
+
+#class-filter .dash-options-list-option.selected .dash-options-list-option-checkbox {
+    accent-color: #A52534 !important;
+}
+
+#lime-opacity .dash-slider-track {
+    background-color: #ddd !important;
+    height: 6px !important;
+    border-radius: 3px !important;
+}
+
+#lime-opacity .dash-slider-range {
+    background-color: #A52534 !important;
+    height: 6px !important;
+    border-radius: 3px !important;
+}
+
+#lime-opacity .dash-slider-thumb {
+    background-color: white !important;
+    border: 2px solid #A52534 !important;
+    width: 14px !important;
+    height: 14px !important;
+    border-radius: 50% !important;
+    box-shadow: 0 0 0 2px #A52534 !important;
+}
+
+#lime-opacity .dash-slider-thumb:hover,
+#lime-opacity .dash-slider-thumb:focus {
+    box-shadow: 0 0 0 3px rgba(165, 37, 52, 0.4) !important;
+    border-color: #A52534 !important;
+}

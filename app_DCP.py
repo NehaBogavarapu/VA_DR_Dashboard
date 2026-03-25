@@ -33,22 +33,29 @@ app.title = "DCP-VA: Dog / Cat / Panda Visual Analytics"
 
 # ── Custom theme ──────────────────────────────────────────────────────────
 THEME = {
-    "bg": "#fffaf8",
-    "light": "#9ab2c8",
-    "dark": "#33475c",
+    "bg": "#C1D2DA",
+    "light": "#105B73",
+    "dark": "#022B3E",
 }
 
+ACCENT = "#A52534"
+
 # ── Colour scheme ──────────────────────────────────────────────────────────
-CLASS_COLORS = {0: "#e74c3c", 1: "#3498db", 2: "#2ecc71"}  # Cat=red, Dog=blue, Panda=green
-MISCLASS_COLORS = {"Correct": "#2ecc71", "Misclassified": "#e74c3c"}
+CLASS_COLORS = {0: "#62828C", 1: "#D47564", 2: "#F3B468"}  # Cat=blue, Dog=peach, Panda=yellow
+MISCLASS_COLORS = {"Correct": "#F3B468", "Misclassified": "#A52534"}
 BRUSH_COLORS = {
     "important": {"fill": "rgba(255,0,0,0.3)", "line": "red"},
     "artefact": {"fill": "rgba(0,100,255,0.3)", "line": "blue"},
     "background": {"fill": "rgba(0,200,0,0.3)", "line": "green"},
 }
 annotation_store = AnnotationStore()
-PANEL_HIDDEN = {"width": "0px", "minWidth": "0px", "overflow": "hidden", "transition": "width 0.3s ease", "padding": "0", "flexShrink": "0"}
-PANEL_VISIBLE = {"width": "400px", "minWidth": "400px", "overflowY": "auto", "maxHeight": "calc(100vh - 80px)", "paddingLeft": "12px", "flexShrink": "0", "transition": "width 0.3s ease"}
+PANEL_HIDDEN = {"width": "0px", "minWidth": "0px", "overflow": "hidden", 
+                "transition": "width 0.3s ease", "padding": "0", "flexShrink": "0"}
+PANEL_VISIBLE = {"width": "400px", "minWidth": "400px", "overflowY": "auto", 
+                 "maxHeight": "calc(100vh - 80px)", "paddingLeft": "12px", 
+                 "flexShrink": "0", "transition": "width 0.3s ease", 
+                 "backgroundColor": "white", "border": f"1px solid {THEME['light']}",
+                 "borderRadius": "10px", "boxShadow": "0 2px 6px rgba(0,0,0,0.05)"}
 
 
 def compute_uncertainty(df):
@@ -114,11 +121,11 @@ sidebar = dbc.Card(dbc.CardBody([
     html.H6("Search image", className="mb-2", style={"fontWeight": "600"}),
     dbc.InputGroup([
         dbc.Input(id="image-search", placeholder="e.g. cat_001", type="text", size="sm", style={"fontSize": "12px"}),
-        dbc.Button("Go", id="search-btn", color="primary", size="sm", style={"fontSize": "12px"})
+        dbc.Button("Go", id="search-btn", size="sm", style={"fontSize": "12px", "backgroundColor": ACCENT, "border": "none"})
     ], size="sm", className="mb-1"),
     html.Div(id="search-status", style={"fontSize": "11px", "color": "#888"}),
     html.Hr(),
-    dbc.Button("Retrain model with annotations", id="retrain-btn", color="success", className="w-100", disabled=True),
+    dbc.Button("Retrain model with annotations", id="retrain-btn", style={"backgroundColor": ACCENT, "border": "none"}, className="w-100", disabled=True),
     html.Div(id="retrain-status", style={"fontSize": "12px", "marginTop": "6px"}),
 ]), style={"height": "100%", "backgroundColor": "white",
         "border": f"1px solid {THEME['light']}",
@@ -130,17 +137,35 @@ overview_row = dbc.Row([
         html.H6("Train vs validation accuracy", style={"fontWeight": "600", "fontSize": "14px"}),
         html.P("Per-class accuracy on train (80%) vs validation (20%)", style={"fontSize": "12px", "color": "#888", "marginBottom": "6px"}),
         dcc.Graph(id="train-test-bar", config={"displayModeBar": False}, style={"height": "280px"})
-    ])), width=4),
+    ]),
+    style={
+        "backgroundColor": "white",
+        "border": f"1px solid {THEME['light']}",
+        "borderRadius": "10px",
+        "boxShadow": "0 2px 6px rgba(0,0,0,0.05)"
+    }), width=4),
     dbc.Col(dbc.Card(dbc.CardBody([
         html.H6("Confusion matrix", style={"fontWeight": "600", "fontSize": "14px"}),
         html.P("True class (rows) vs predicted class (columns)", style={"fontSize": "12px", "color": "#888", "marginBottom": "6px"}),
         dcc.Graph(id="confusion-matrix", config={"displayModeBar": False}, style={"height": "280px"})
-    ])), width=4),
+    ]),
+    style={
+        "backgroundColor": "white",
+        "border": f"1px solid {THEME['light']}",
+        "borderRadius": "10px",
+        "boxShadow": "0 2px 6px rgba(0,0,0,0.05)"
+    }), width=4),
     dbc.Col(dbc.Card(dbc.CardBody([
         html.H6("Review queue", style={"fontWeight": "600", "fontSize": "14px"}),
         html.P("Images ranked in order of descending uncertainty. Click to inspect.", style={"fontSize": "12px", "color": "#888", "marginBottom": "6px"}),
         html.Div(id="ranking-table", style={"maxHeight": "280px", "overflowY": "auto", "fontSize": "12px"})
-    ])), width=4),
+    ]),
+    style={
+        "backgroundColor": "white",
+        "border": f"1px solid {THEME['light']}",
+        "borderRadius": "10px",
+        "boxShadow": "0 2px 6px rgba(0,0,0,0.05)"
+    }), width=4),
 ], className="mb-3")
 
 scatter_view = dbc.Card(dbc.CardBody([
@@ -149,10 +174,23 @@ scatter_view = dbc.Card(dbc.CardBody([
     html.Div(id="scatter-legend", style={"marginBottom": "8px"}),
     dcc.Loading(dcc.Graph(id="umap-scatter", config={"displayModeBar": True, "scrollZoom": True}, style={"height": "500px"}), type="circle"),
     html.Div(id="cluster-summary", style={"fontSize": "13px", "marginTop": "8px"})
-]))
+    ]),
+    style={
+        "backgroundColor": "white",
+        "border": f"1px solid {THEME['light']}",
+        "borderRadius": "10px",
+        "boxShadow": "0 2px 6px rgba(0,0,0,0.05)"
+    })
 
-side_panel = html.Div(id="side-panel", style=PANEL_HIDDEN, children=[
-    html.Div([
+side_panel = html.Div(id="side-panel", style={
+        **PANEL_HIDDEN,  
+        "backgroundColor": "white",
+        "border": f"1px solid {THEME['light']}",
+        "borderRadius": "10px",
+        "boxShadow": "0 2px 6px rgba(0,0,0,0.05)",
+        "padding": "12px"
+    }, 
+    children=[html.Div([
         html.Button("✕", id="close-panel-btn", style={"float": "right", "border": "none", "background": "none", "fontSize": "18px", "cursor": "pointer"}),
         html.H6("Image Inspector", style={"fontWeight": "600"}),
     ]),
@@ -182,7 +220,7 @@ side_panel = html.Div(id="side-panel", style=PANEL_HIDDEN, children=[
                  dcc.Dropdown(id="correct-class", options=[{"label": CLASS_DISPLAY[c], "value": c} for c in range(3)],
                               placeholder="Select…", clearable=False, style={"fontSize": "12px"})], width=6)
     ], className="mt-2"),
-    dbc.Button("Save annotation", id="save-annotation-btn", color="primary", size="sm", className="w-100 mt-2"),
+    dbc.Button("Save annotation", id="save-annotation-btn", style={"backgroundColor": ACCENT, "border": "none"}, size="sm", className="w-100 mt-2"),
     html.Div(id="save-status", style={"fontSize": "11px", "marginTop": "4px"}),
     html.Hr(),
     html.H6("Annotation log", style={"fontWeight": "600", "fontSize": "13px"}),
@@ -229,31 +267,31 @@ def update_overview(classes, conf_range):
 
     total = len(df)
 
-    # Chart 1: Stacked bar (correct vs misclassified per class)
-    dist_fig = go.Figure()
+    # # Chart 1: Stacked bar (correct vs misclassified per class)
+    # dist_fig = go.Figure()
     ac = sorted(df["true_class"].unique())
     labels = [CLASS_DISPLAY[c] for c in ac]
     correct_counts = []
     misclass_counts = []
     correct_pcts = []
     misclass_pcts = []
-    for c in ac:
-        s = df[df["true_class"] == c]
-        cnt = len(s)
-        cor = (s["pred_class"] == c).sum()
-        mis = cnt - cor
-        correct_counts.append(cor)
-        misclass_counts.append(mis)
-        correct_pcts.append(cor / cnt * 100 if cnt else 0)
-        misclass_pcts.append(mis / cnt * 100 if cnt else 0)
-    dist_fig.add_trace(go.Bar(x=labels, y=correct_counts, name="Correct", marker_color="#2ecc71",
-                               text=[f"{p:.0f}%" for p in correct_pcts], textposition="inside", textfont=dict(size=10, color="white")))
-    dist_fig.add_trace(go.Bar(x=labels, y=misclass_counts, name="Misclassified", marker_color="#e74c3c",
-                               text=[f"{p:.0f}%" for p in misclass_pcts], textposition="inside", textfont=dict(size=10, color="white")))
-    oa = (df["pred_class"] == df["true_class"]).sum() / total * 100
-    dist_fig.update_layout(template="plotly_white", barmode="stack", margin=dict(l=40, r=10, t=25, b=40),
-                            yaxis=dict(title="Count"), height=280, legend=dict(orientation="h", yanchor="bottom", y=-0.3, x=0.2),
-                            annotations=[dict(text=f"Overall accuracy: {oa:.1f}%", xref="paper", yref="paper", x=0.5, y=1.05, showarrow=False, font=dict(size=11, color="#555"))])
+    # for c in ac:
+    #     s = df[df["true_class"] == c]
+    #     cnt = len(s)
+    #     cor = (s["pred_class"] == c).sum()
+    #     mis = cnt - cor
+    #     correct_counts.append(cor)
+    #     misclass_counts.append(mis)
+    #     correct_pcts.append(cor / cnt * 100 if cnt else 0)
+    #     misclass_pcts.append(mis / cnt * 100 if cnt else 0)
+    # dist_fig.add_trace(go.Bar(x=labels, y=correct_counts, name="Correct", marker_color="#2ecc71",
+    #                            text=[f"{p:.0f}%" for p in correct_pcts], textposition="inside", textfont=dict(size=10, color="white")))
+    # dist_fig.add_trace(go.Bar(x=labels, y=misclass_counts, name="Misclassified", marker_color="#e74c3c",
+    #                            text=[f"{p:.0f}%" for p in misclass_pcts], textposition="inside", textfont=dict(size=10, color="white")))
+    # oa = (df["pred_class"] == df["true_class"]).sum() / total * 100
+    # dist_fig.update_layout(template="plotly_white", barmode="stack", margin=dict(l=40, r=10, t=25, b=40),
+    #                         yaxis=dict(title="Count"), height=280, legend=dict(orientation="h", yanchor="bottom", y=-0.3, x=0.2),
+    #                         annotations=[dict(text=f"Overall accuracy: {oa:.1f}%", xref="paper", yref="paper", x=0.5, y=1.05, showarrow=False, font=dict(size=11, color="#555"))])
 
     # Chart 2: Train vs Val accuracy
     np.random.seed(42)
@@ -263,14 +301,14 @@ def update_overview(classes, conf_range):
     tt_fig = go.Figure()
     ta = [(tdf[tdf["true_class"] == c]["pred_class"] == c).sum() / max(len(tdf[tdf["true_class"] == c]), 1) * 100 for c in ac]
     va = [(vdf[vdf["true_class"] == c]["pred_class"] == c).sum() / max(len(vdf[vdf["true_class"] == c]), 1) * 100 for c in ac]
-    tt_fig.add_trace(go.Bar(name="Train", x=labels, y=ta, marker_color="#3498db", text=[f"{a:.0f}%" for a in ta], textposition="inside", textfont=dict(size=10, color="white")))
-    tt_fig.add_trace(go.Bar(name="Val", x=labels, y=va, marker_color="#e67e22", text=[f"{a:.0f}%" for a in va], textposition="inside", textfont=dict(size=10, color="white")))
+    tt_fig.add_trace(go.Bar(name="Train", x=labels, y=ta, marker_color="#105B73", text=[f"{a:.0f}%" for a in ta], textposition="inside", textfont=dict(size=10, color="white")))
+    tt_fig.add_trace(go.Bar(name="Val", x=labels, y=va, marker_color="#A52534", text=[f"{a:.0f}%" for a in va], textposition="inside", textfont=dict(size=10, color="white")))
     ot = (tdf["pred_class"] == tdf["true_class"]).mean() * 100
     ov = (vdf["pred_class"] == vdf["true_class"]).mean() * 100
     tt_fig.update_layout(template="plotly_white", barmode="group", margin=dict(l=40, r=10, t=20, b=40),
                           yaxis=dict(title="Accuracy %", range=[0, 100]),
                           legend=dict(orientation="h", yanchor="bottom", y=-0.3, x=0.2), height=280,
-                          annotations=[dict(text=f"Overall: Train {ot:.1f}% | Val {ov:.1f}%", xref="paper", yref="paper", x=0.5, y=1.02, showarrow=False, font=dict(size=11, color="#555"))])
+                          annotations=[dict(text=f"Overall: Train {ot:.1f}% | Val {ov:.1f}%", xref="paper", yref="paper", x=0.5, y=1.1, showarrow=False, font=dict(size=11, color="#555"))])
 
     # Chart 3: Confusion matrix
     n = len(ac)
@@ -282,7 +320,7 @@ def update_overview(classes, conf_range):
         z=cm, x=[CLASS_DISPLAY[c] for c in ac], y=[CLASS_DISPLAY[c] for c in ac],
         text=[[str(cm[i, j]) for j in range(n)] for i in range(n)],
         texttemplate="%{text}", textfont=dict(size=12),
-        colorscale=[[0, "#f8f9fa"], [0.3, "#f5c4b3"], [0.6, "#e67e22"], [1, "#c0392b"]],
+        colorscale=[[0, "#f8f9fa"], [0.3, "#f5c4b3"], [0.6, "#e67e22"], [1, "#A52534"]],
         showscale=False))
     cmf.update_layout(template="plotly_white", margin=dict(l=40, r=10, t=10, b=40),
                        xaxis=dict(title="Predicted"), yaxis=dict(title="True", autorange="reversed"), height=280)
@@ -304,7 +342,7 @@ def update_overview(classes, conf_range):
                 html.Td(
                     dbc.Badge(
                         "✗" if r["pred_class"] != r["true_class"] else "✓",
-                        color="danger" if r["pred_class"] != r["true_class"] else "success",
+                        color="#A52534" if r["pred_class"] != r["true_class"] else "#105B73",
                         style={"fontSize": "10px"}
                     )
                 )
@@ -379,7 +417,7 @@ def update_scatter(classes, cr, cm):
             ))
 
     else:  # misclassification
-        for mis, label, color in [(False, "Correct", "#2ecc71"), (True, "Misclassified", "#e74c3c")]:
+        for mis, label, color in [(False, "Correct", "#105B73"), (True, "Misclassified", "#A52534")]:
             s = df[df["mis"] == mis]
             fig.add_trace(go.Scatter(
                 x=s["u1"], y=s["u2"], mode="markers",
@@ -473,7 +511,7 @@ def _build_panel(image_id, row, lime_opacity, brush_color):
                 html.Span(CLASS_DISPLAY[tc], style={"color": CLASS_COLORS[tc], "fontWeight": "600"})],
                style={"marginBottom": "2px", "fontSize": "13px"}),
         html.P([dbc.Badge("Correct" if pc == tc else "Misclassified",
-                           color="success" if pc == tc else "danger", style={"fontSize": "11px"}),
+                           color="#105B73" if pc == tc else "#A52534", style={"fontSize": "11px"}),
                 html.Span(f"  Uncertainty: {unc:.2f}", style={"fontSize": "12px", "color": "#888", "marginLeft": "8px"})])
     ])
 
