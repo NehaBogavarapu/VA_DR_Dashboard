@@ -53,7 +53,7 @@ def load_data(require_umap=True) -> pd.DataFrame:
     # Columns that must ALWAYS exist
     required = {
         "image_id", "true_class", "pred_class",
-        "confidence", "class_confidences"
+        "confidence", "class_confidences", "split"
     }
 
     # Only require UMAP columns when running the dashboard

@@ -2,7 +2,7 @@
 Dog / Cat / Panda Visual Analytics Prototype
 ==============================================
 AMV10 Visual Analytics — Group 14
-- Top row: Class distribution + accuracy (stacked bar) | Train vs Val | Confusion matrix
+- Top row: Class distribution + accuracy (stacked bar) | Train vs Val vs Test | Confusion matrix
 - Review queue: images ranked by uncertainty
 - Middle: UMAP scatter with 3 colour modes
 - Right slide-out panel: Image + LIME + Annotation
@@ -142,8 +142,8 @@ sidebar = dbc.Card(dbc.CardBody([
 overview_row = dbc.Row([
 
     dbc.Col(dbc.Card(dbc.CardBody([
-        html.H6("Train vs validation accuracy", style={"fontWeight": "600", "fontSize": "14px"}),
-        html.P("Per-class accuracy on train (80%) vs validation (20%)", style={"fontSize": "12px", "color": "#888", "marginBottom": "6px"}),
+        html.H6("Train vs validation vs test accuracy", style={"fontWeight": "600", "fontSize": "14px"}),
+        html.P("Per-class accuracy on train / validation / test split", style={"fontSize": "12px", "color": "#888", "marginBottom": "6px"}),
         dcc.Graph(id="train-test-bar", config={"displayModeBar": False}, style={"height": "280px"})
     ]),
     style={
@@ -313,22 +313,24 @@ def update_overview(classes, conf_range, cm_filter):
     #                         yaxis=dict(title="Count"), height=280, legend=dict(orientation="h", yanchor="bottom", y=-0.3, x=0.2),
     #                         annotations=[dict(text=f"Overall accuracy: {oa:.1f}%", xref="paper", yref="paper", x=0.5, y=1.05, showarrow=False, font=dict(size=11, color="#555"))])
 
-    # Chart 2: Train vs Val accuracy
-    np.random.seed(42)
-    vm = np.random.rand(len(df)) < 0.2
-    tdf = df[~vm]
-    vdf = df[vm]
+    # Chart 2: Train vs Val vs Test accuracy (uses 'split' column from predictions.csv)
+    tdf = df[df["split"] == "train"]
+    vdf = df[df["split"] == "val"]
+    tedf = df[df["split"] == "test"]
     tt_fig = go.Figure()
     ta = [(tdf[tdf["true_class"] == c]["pred_class"] == c).sum() / max(len(tdf[tdf["true_class"] == c]), 1) * 100 for c in ac]
     va = [(vdf[vdf["true_class"] == c]["pred_class"] == c).sum() / max(len(vdf[vdf["true_class"] == c]), 1) * 100 for c in ac]
+    tea = [(tedf[tedf["true_class"] == c]["pred_class"] == c).sum() / max(len(tedf[tedf["true_class"] == c]), 1) * 100 for c in ac]
     tt_fig.add_trace(go.Bar(name="Train", x=labels, y=ta, marker_color="#105B73", text=[f"{a:.0f}%" for a in ta], textposition="inside", textfont=dict(size=10, color="white")))
     tt_fig.add_trace(go.Bar(name="Val", x=labels, y=va, marker_color="#A52534", text=[f"{a:.0f}%" for a in va], textposition="inside", textfont=dict(size=10, color="white")))
+    tt_fig.add_trace(go.Bar(name="Test", x=labels, y=tea, marker_color="#E67E22", text=[f"{a:.0f}%" for a in tea], textposition="inside", textfont=dict(size=10, color="white")))
     ot = (tdf["pred_class"] == tdf["true_class"]).mean() * 100
     ov = (vdf["pred_class"] == vdf["true_class"]).mean() * 100
+    ote = (tedf["pred_class"] == tedf["true_class"]).mean() * 100
     tt_fig.update_layout(template="plotly_white", barmode="group", margin=dict(l=40, r=10, t=20, b=40),
                           yaxis=dict(title="Accuracy %", range=[0, 100]),
-                          legend=dict(orientation="h", yanchor="bottom", y=-0.3, x=0.2), height=280,
-                          annotations=[dict(text=f"Overall: Train {ot:.1f}% | Val {ov:.1f}%", xref="paper", yref="paper", x=0.5, y=1.1, showarrow=False, font=dict(size=11, color="#555"))])
+                          legend=dict(orientation="h", yanchor="bottom", y=-0.3, x=0.05), height=280,
+                          annotations=[dict(text=f"Overall: Train {ot:.1f}% | Val {ov:.1f}% | Test {ote:.1f}%", xref="paper", yref="paper", x=0.5, y=1.1, showarrow=False, font=dict(size=11, color="#555"))])
 
     # Chart 3: Confusion matrix
     n = len(ac)
