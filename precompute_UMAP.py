@@ -86,7 +86,7 @@ def extract_hidden_layers_for_all_images(df):
 # ───────────────────────────────────────────────────────────────
 
 print("Loading predictions.csv...")
-df = load_data()
+df = load_data(require_umap=False)
 
 # Extract hidden layers
 hidden = extract_hidden_layers_for_all_images(df)
