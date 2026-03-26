@@ -23,6 +23,7 @@ def extract_hidden_layers_for_all_images(df):
     """Extract last hidden layer (AdaptiveConcatPool2d output) for all images."""
     learn = get_learner()
     model = learn.model
+    model = model.float()
     device = next(model.parameters()).device
 
     tfm = transforms.Compose([
