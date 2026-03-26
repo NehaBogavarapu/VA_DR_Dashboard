@@ -53,6 +53,7 @@ def get_learner():
         pkl_dir = os.path.dirname(EXPORT_PKL_PATH)
         pkl_name = os.path.basename(EXPORT_PKL_PATH)
         _learn = load_learner(pkl_dir, pkl_name)
+        _learn.model = _learn.model.float()  # Ensure model is in float32 
 
         # Move to GPU if available
         if torch.cuda.is_available():
