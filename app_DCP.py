@@ -30,7 +30,7 @@ from annotation_store_DCP import AnnotationStore
 from retrain_DCP import retrain_with_annotations
 
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.FLATLY], suppress_callback_exceptions=True)
-app.title = "DCP-VA: Dog / Cat / Panda Visual Analytics"
+app.title = "ReVision Lab: A Visual Analytics Dashboard for Image Classification Models"
 
 # ── Custom theme ──────────────────────────────────────────────────────────
 THEME = {
@@ -97,7 +97,7 @@ def make_legend_for_mode(mode):
 header = dbc.Navbar(
     dbc.Container([
         dbc.NavbarBrand(
-            "DCP-VA  Dog / Cat / Panda Visual Analytics",
+            "ReVision Lab: A Visual Analytics Dashboard for Image Classification Models",
             style={"fontWeight": "600", "color": "white"}
         ),
         html.Span(
@@ -115,7 +115,7 @@ sidebar = dbc.Card(dbc.CardBody([
     html.Label("Show classes", style={"fontSize": "13px"}),
     dcc.Checklist(id="class-filter", options=[{"label": f" {CLASS_DISPLAY[c]}", "value": c} for c in range(3)], value=[0, 1, 2], inline=False, style={"fontSize": "13px", "marginBottom": "12px"}),
     html.Label("Confidence range", style={"fontSize": "13px"}),
-    dcc.RangeSlider(id="confidence-slider", min=0, max=1, step=0.05, value=[0.0, 1.0], marks={0: "0", 0.5: "0.5", 1: "1"}, tooltip={"placement": "bottom"}),
+    dcc.RangeSlider(id="confidence-slider", min=0.5, max=1, step=0.05, value=[0.5, 1.0], marks={0.5: "0.5", 1: "1"}, tooltip={"placement": "bottom"}),
     html.Hr(),
     html.H6("Scatter colour", className="mb-2", style={"fontWeight": "600"}),
     dcc.RadioItems(id="color-mode", options=[
