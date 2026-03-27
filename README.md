@@ -113,6 +113,25 @@ pip install -r requirements.txt
 
 ---
 
+## What We Built vs. What We Reused
+
+The base model originates from a publicly available Kaggle notebook for diabetic retinopathy classification:
+
+https://www.kaggle.com/code/tanlikesmath/intro-aptos-diabetic-retinopathy-eda-starter
+
+We adapted the pretrained ResNet-50 architecture from that notebook to work with the Dog / Cat / Panda dataset (3-class classification with softmax instead of regression). The ImageNet-pretrained backbone weights come from PyTorch / torchvision.
+
+**Implemented by the students (Group 14):**
+
+- Full interactive Dash dashboard (`app_DCP.py`) — layout, callbacks, linked views
+- Data pipeline with live hidden-layer extraction, UMAP projection, and k-means clustering (`data_pipeline_DCP.py`, `precompute_UMAP.py`)
+- LIME explainability integration with custom overlay rendering (`lime_explainer_DCP.py`)
+- Annotation store for human-in-the-loop label corrections (`annotation_store_DCP.py`)
+- Retraining pipeline with frozen backbone fine-tuning (`retrain_DCP.py`)
+- Adapted training notebook for the new dataset and classification task (`DCP_animal_classifier_resnet50.ipynb`)
+
+---
+
 ## Project Structure
 
 ```
