@@ -47,10 +47,7 @@ RETRAIN_CONFIG = {
 }
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-#  SHAPE → ATTENTION MASK CONVERSION
-# ═══════════════════════════════════════════════════════════════════════════
-
+#  Shape processing and attention masking functions
 def _shapes_to_attention_mask(shapes, orig_w, orig_h, target_size=224):
     """Convert Plotly annotation shapes to a float attention mask.
 
@@ -134,7 +131,7 @@ def _rasterise_shape(shape, orig_w, orig_h, target_size, sx, sy):
 
     if shape_type == "rect":
         x0 = int(shape["x0"] * sx)
-        y0 = int((orig_h - shape["y1"]) * sy)  # Plotly y is inverted
+        y0 = int((orig_h - shape["y1"]) * sy)  
         x1 = int(shape["x1"] * sx)
         y1 = int((orig_h - shape["y0"]) * sy)
         x0, x1 = max(0, min(x0, x1)), min(target_size, max(x0, x1))
@@ -185,16 +182,11 @@ def _apply_attention_mask(image_tensor, mask, suppress_alpha=0.1):
     # mask is (H, W), expand to (1, H, W) for broadcasting with (C, H, W)
     mask_t = torch.from_numpy(mask).unsqueeze(0).to(image_tensor.device)
 
-    # Blend: pixel = mask * original + (1 - mask) * suppressed
-    # suppressed = suppress_alpha * original (darkened)
     weight = mask_t * (1.0 - suppress_alpha) + suppress_alpha
     return image_tensor * weight
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-#  MAIN RETRAIN FUNCTION
-# ═══════════════════════════════════════════════════════════════════════════
-
+#  Retrain with user annotations
 def retrain_with_annotations(annotations):
     if not annotations:
         return {"success": False, "message": "No annotations provided.", "metrics": {}}
@@ -216,13 +208,6 @@ def retrain_with_annotations(annotations):
         annotation_shapes[iid] = a.get("shapes", [])
 
     n_with_shapes = sum(1 for s in annotation_shapes.values() if s)
-
-    print(f"\n{'='*50}")
-    print(f"RETRAINING on {len(corrected_labels)} annotated images")
-    print(f"  All {len(corrected_labels)} have corrected labels")
-    print(f"  {n_with_shapes} also have attention masks (drawn regions)")
-    print(f"{'='*50}")
-
     acc_before = _compute_accuracy()
 
     _finetune(learn, corrected_labels, annotation_shapes)
@@ -230,14 +215,12 @@ def retrain_with_annotations(annotations):
     # Save weights
     weights_path = os.path.join(BASE_DIR, "retrained_weights.pth")
     torch.save(learn.model.state_dict(), weights_path)
-    print(f"Saved updated weights to {weights_path}")
+
 
     # Re-predict all images
-    print("Re-predicting all images...")
     df = pd.read_csv(PREDICTIONS_PATH)
     _repredict_all(learn, df)
     df.to_csv(PREDICTIONS_PATH, index=False)
-    print(f"Updated predictions.csv ({len(df)} rows)")
 
     # Reload and clear cache
     reload_learner()
@@ -262,14 +245,10 @@ def retrain_with_annotations(annotations):
     }
 
     _save_retrain_log(annotations, result)
-    print(f"Retrain complete: {result['message']}")
     return result
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-#  FINE-TUNING WITH ATTENTION MASKS
-# ═══════════════════════════════════════════════════════════════════════════
-
+#  Fine-tuning function
 def _finetune(learn, corrected_labels: dict, annotation_shapes: dict):
     """Fine-tune head using CrossEntropyLoss with attention-masked images.
 
@@ -393,18 +372,12 @@ def _finetune(learn, corrected_labels: dict, annotation_shapes: dict):
             n_batches += 1
 
         avg_loss = total_loss / max(n_batches, 1)
-        print(f"  Epoch {epoch+1}/{RETRAIN_CONFIG['epochs']}: loss = {avg_loss:.4f}")
 
     model.eval()
     for param in model.parameters():
         param.requires_grad = True
-    print("  Fine-tuning complete.")
 
-
-# ═══════════════════════════════════════════════════════════════════════════
-#  RE-PREDICTION
-# ═══════════════════════════════════════════════════════════════════════════
-
+#  Re-predict all images with updated model
 def _repredict_all(learn, df: pd.DataFrame):
     """Re-run inference on all images with updated model."""
     import torch
@@ -457,10 +430,7 @@ def _repredict_all(learn, df: pd.DataFrame):
         df.at[df.index[i], "class_confidences"] = json.dumps([round(p, 4) for p in ordered])
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-#  HELPERS
-# ═══════════════════════════════════════════════════════════════════════════
-
+#  Helper functions
 def _find_image(image_id: str, true_class: int = None) -> str:
     if true_class is not None:
         folder = CLASS_FOLDERS.get(int(true_class), "")

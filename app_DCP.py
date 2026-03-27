@@ -53,8 +53,6 @@ annotation_store = AnnotationStore()
 PANEL_BASE = {
     "width": "400px",
     "minWidth": "400px",
-    # "overflowY": "auto",
-    # "maxHeight": "calc(100vh - 10px)",
     "paddingLeft": "12px",
     "flexShrink": "0",
     "backgroundColor": "white",
@@ -90,10 +88,7 @@ def make_legend_for_mode(mode):
     ], style={"marginRight": "14px"}) for l, c in MISCLASS_COLORS.items()]
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-#  LAYOUT
-# ═══════════════════════════════════════════════════════════════════════════
-
+#  Layout components
 header = dbc.Navbar(
     dbc.Container([
         dbc.NavbarBrand(
@@ -266,12 +261,8 @@ app.layout = html.Div([
 ], style={"backgroundColor": THEME["bg"]})
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-#  CALLBACKS
-# ═══════════════════════════════════════════════════════════════════════════
-
+#  Callbacks
 @callback(
-    # Output("class-dist-bar", "figure"), 
     Output("train-test-bar", "figure"),
     Output("confusion-matrix", "figure"), Output("ranking-table", "children"),
     Input("class-filter", "value"), Input("confidence-slider", "value"), Input("cm-filter", "data")
@@ -287,33 +278,9 @@ def update_overview(classes, conf_range, cm_filter):
 
     total = len(df)
 
-    # # Chart 1: Stacked bar (correct vs misclassified per class)
-    # dist_fig = go.Figure()
+    # Chart 1: Stacked bar (correct vs misclassified per class)
     ac = sorted(df["true_class"].unique())
     labels = [CLASS_DISPLAY[c] for c in ac]
-    correct_counts = []
-    misclass_counts = []
-    correct_pcts = []
-    misclass_pcts = []
-    # for c in ac:
-    #     s = df[df["true_class"] == c]
-    #     cnt = len(s)
-    #     cor = (s["pred_class"] == c).sum()
-    #     mis = cnt - cor
-    #     correct_counts.append(cor)
-    #     misclass_counts.append(mis)
-    #     correct_pcts.append(cor / cnt * 100 if cnt else 0)
-    #     misclass_pcts.append(mis / cnt * 100 if cnt else 0)
-    # dist_fig.add_trace(go.Bar(x=labels, y=correct_counts, name="Correct", marker_color="#2ecc71",
-    #                            text=[f"{p:.0f}%" for p in correct_pcts], textposition="inside", textfont=dict(size=10, color="white")))
-    # dist_fig.add_trace(go.Bar(x=labels, y=misclass_counts, name="Misclassified", marker_color="#e74c3c",
-    #                            text=[f"{p:.0f}%" for p in misclass_pcts], textposition="inside", textfont=dict(size=10, color="white")))
-    # oa = (df["pred_class"] == df["true_class"]).sum() / total * 100
-    # dist_fig.update_layout(template="plotly_white", barmode="stack", margin=dict(l=40, r=10, t=25, b=40),
-    #                         yaxis=dict(title="Count"), height=280, legend=dict(orientation="h", yanchor="bottom", y=-0.3, x=0.2),
-    #                         annotations=[dict(text=f"Overall accuracy: {oa:.1f}%", xref="paper", yref="paper", x=0.5, y=1.05, showarrow=False, font=dict(size=11, color="#555"))])
-
-    # Chart 2: Train vs Val vs Test accuracy (uses 'split' column from predictions.csv)
     tdf = df[df["split"] == "train"]
     vdf = df[df["split"] == "val"]
     tedf = df[df["split"] == "test"]
@@ -349,7 +316,6 @@ def update_overview(classes, conf_range, cm_filter):
         y=[CLASS_DISPLAY[c] for c in ac],
         text=[[str(cm[i, j]) for j in range(n)] for i in range(n)],
         texttemplate="%{text}", 
-        # textfont=dict(size=12),
         colorscale=[[0, "#f8f9fa"], [0.3, "#f5c4b3"], [0.6, "#e67e22"], [1, "#A52534"]],
         showscale=False, 
         hovertemplate="<b>%{y}</b> → <b>%{x}</b><br>Count: %{z}<extra></extra>"
@@ -692,10 +658,7 @@ def retrain(nc):
     return result["message"], [], True
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-#  HELPERS
-# ═══════════════════════════════════════════════════════════════════════════
-
+#  Helper functions
 def _pil_to_b64(p):
     i = Image.open(p).convert("RGB")
     b = BytesIO()

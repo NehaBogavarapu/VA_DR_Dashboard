@@ -15,10 +15,7 @@ from torchvision import transforms
 from data_pipeline_DCP import load_data, _find_image, CLASS_FOLDERS
 from lime_explainer_DCP import get_learner
 
-# ───────────────────────────────────────────────────────────────
 # Hidden layer extraction (moved here from old pipeline)
-# ───────────────────────────────────────────────────────────────
-
 def extract_hidden_layers_for_all_images(df):
     """Extract last hidden layer (AdaptiveConcatPool2d output) for all images."""
     learn = get_learner()
@@ -55,8 +52,6 @@ def extract_hidden_layers_for_all_images(df):
     model.eval()
     batch_size = 32
 
-    print("Extracting hidden layers...")
-
     for start in range(0, len(image_ids), batch_size):
         batch_ids = image_ids[start:start + batch_size]
         tensors = []
@@ -72,12 +67,10 @@ def extract_hidden_layers_for_all_images(df):
         with torch.no_grad():
             _ = model(batch)
 
-        print(f"  {min(start + batch_size, len(image_ids))}/{len(image_ids)} extracted")
 
     handle.remove()
 
     hidden = np.concatenate(hidden_outputs, axis=0)
-    print(f"Hidden layer shape: {hidden.shape}")
 
     return hidden
 
@@ -86,17 +79,14 @@ def extract_hidden_layers_for_all_images(df):
 # Main UMAP preprocessing
 # ───────────────────────────────────────────────────────────────
 
-print("Loading predictions.csv...")
 df = load_data(require_umap=False)
 
 # Extract hidden layers
 hidden = extract_hidden_layers_for_all_images(df)
 
-print("Scaling...")
 scaler = StandardScaler()
 scaled = scaler.fit_transform(hidden)
 
-print("Running UMAP...")
 reducer = umap.UMAP(
     n_components=2,
     n_neighbors=15,
@@ -109,7 +99,4 @@ coords = reducer.fit_transform(scaled)
 df["u1"] = coords[:, 0]
 df["u2"] = coords[:, 1]
 
-print("Saving updated predictions.csv...")
 df.to_csv("va_export/predictions.csv", index=False)
-
-print("Done! UMAP coordinates added.")

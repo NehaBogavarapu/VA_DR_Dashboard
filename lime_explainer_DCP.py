@@ -18,10 +18,7 @@ CLASS_NAMES = {0: "cats", 1: "dogs", 2: "panda"}  # Must match fastai class orde
 CLASS_DISPLAY = {0: "Cat", 1: "Dog", 2: "Panda"}
 CLASS_FOLDERS = {0: "cats", 1: "dogs", 2: "panda"}
 
-# ═══════════════════════════════════════════════════════════════════════════
-#  MODEL LOADING
-# ═══════════════════════════════════════════════════════════════════════════
-
+#  Model loading and prediction caching
 _learn = None
 _fastai_classes = None  # e.g. ['Cat', 'Dog', 'Panda']
 
@@ -117,10 +114,7 @@ def _predict_fn(images: np.ndarray) -> np.ndarray:
     learn = get_learner()
     fastai_cls = get_fastai_classes()
 
-    # Build reorder mapping: fastai class name → our label index
-    # The model uses class names like 'Cat', 'Dog', 'Panda' (from training)
     # CLASS_NAMES uses folder names like 'cats', 'dogs', 'panda'
-    # We need to match them flexibly
     name_to_label = {}
     for k, v in CLASS_NAMES.items():
         name_to_label[v] = k
@@ -202,10 +196,7 @@ def predict_single(image_id: str, true_class: int = None) -> dict:
     }
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-#  LIME EXPLANATION
-# ═══════════════════════════════════════════════════════════════════════════
-
+#  Lime explanation generation
 def generate_lime_explanation(
     image_id: str,
     true_class: int = None,

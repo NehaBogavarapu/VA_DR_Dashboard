@@ -18,7 +18,7 @@ from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
 import umap
 
-# ── Paths ──────────────────────────────────────────────────────────────────
+# Paths 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "va_export")
 PREDICTIONS_PATH = os.path.join(DATA_DIR, "predictions.csv")
@@ -31,10 +31,7 @@ CLASS_DISPLAY = {0: "Cat", 1: "Dog", 2: "Panda"}  # Pretty names for UI
 CLASS_FOLDERS = {0: "cats", 1: "dogs", 2: "panda"}
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-#  DATA LOADING
-# ═══════════════════════════════════════════════════════════════════════════
-
+#  Data loading and processing
 @lru_cache(maxsize=1)
 def load_data(require_umap=True) -> pd.DataFrame:
     """Load predictions.csv produced by the training notebook.
@@ -98,10 +95,7 @@ def clear_cache():
     print("Data cache cleared.")
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-#  FILTERING
-# ═══════════════════════════════════════════════════════════════════════════
-
+#  Filtering functions
 def get_misclassified(df: pd.DataFrame) -> pd.DataFrame:
     return df[df["pred_class"] != df["true_class"]].copy()
 
@@ -116,20 +110,14 @@ def filter_by_classes(df: pd.DataFrame, classes: list) -> pd.DataFrame:
     return df[df["true_class"].isin(classes)].copy()
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-#  K-MEANS CLUSTERING
-# ═══════════════════════════════════════════════════════════════════════════
-
+#  K-means clustering on UMAP coordinates
 def run_kmeans(coords: np.ndarray, k: int = 3, random_state: int = 42) -> np.ndarray:
     k = min(k, len(coords))
     kmeans = KMeans(n_clusters=k, random_state=random_state, n_init=10)
     return kmeans.fit_predict(coords)
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-#  SETUP HELPER
-# ═══════════════════════════════════════════════════════════════════════════
-
+#  Setup check and helper functions
 def check_setup():
     print("=" * 50)
     print("DCP-VA Data Pipeline — Setup Check")
