@@ -1,0 +1,692 @@
+"""
+Dog / Cat / Panda Visual Analytics Prototype
+==============================================
+AMV10 Visual Analytics — Group 14
+- Top row: Class distribution + accuracy (stacked bar) | Train vs Val vs Test | Confusion matrix
+- Review queue: images ranked by uncertainty
+- Middle: UMAP scatter with 3 colour modes
+- Right slide-out panel: Image + LIME + Annotation
+"""
+
+import dash
+from dash import dcc, html, Input, Output, State, callback, no_update, ctx
+from dash.exceptions import PreventUpdate
+import dash_bootstrap_components as dbc
+import plotly.graph_objects as go
+import numpy as np
+import json
+import base64
+from io import BytesIO
+from PIL import Image
+import heapq
+
+from data_pipeline_DCP import (
+    load_data, run_kmeans,
+    get_misclassified, filter_by_confidence,
+    CLASS_NAMES, CLASS_DISPLAY,
+)
+from lime_explainer_DCP import generate_lime_explanation
+from annotation_store_DCP import AnnotationStore
+from retrain_DCP import retrain_with_annotations
+
+app = dash.Dash(__name__, external_stylesheets=[dbc.themes.FLATLY], suppress_callback_exceptions=True)
+app.title = "ReVision Lab: A Visual Analytics Dashboard for Image Classification Models"
+
+# ── Custom theme ──────────────────────────────────────────────────────────
+THEME = {
+    "bg": "#C1D2DA",
+    "light": "#105B73",
+    "dark": "#022B3E",
+}
+
+ACCENT = "#A52534"
+
+# ── Colour scheme ──────────────────────────────────────────────────────────
+CLASS_COLORS = {0: "#62828C", 1: "#D47564", 2: "#F3B468"}  # Cat=blue, Dog=peach, Panda=yellow
+MISCLASS_COLORS = {"Correct": "#F3B468", "Misclassified": "#A52534"}
+BRUSH_COLORS = {
+    "important": {"fill": "rgba(255,0,0,0.3)", "line": "red"},
+    "artefact": {"fill": "rgba(0,100,255,0.3)", "line": "blue"},
+    "background": {"fill": "rgba(0,200,0,0.3)", "line": "green"},
+}
+annotation_store = AnnotationStore()
+PANEL_BASE = {
+    "width": "400px",
+    "minWidth": "400px",
+    "paddingLeft": "12px",
+    "flexShrink": "0",
+    "backgroundColor": "white",
+    "border": f"1px solid {THEME['light']}",
+    "borderRadius": "10px",
+    "boxShadow": "0 2px 6px rgba(0,0,0,0.05)",
+    "padding": "12px",
+}
+
+def compute_uncertainty(df):
+    df = df.copy()
+
+    def calc(conf_str):
+        probs = json.loads(conf_str)
+        if len(probs) < 2:
+            return 0.0
+        top2 = heapq.nlargest(2, probs)
+        return round(1.0 - (top2[0] - top2[1]), 4)
+
+    df["uncertainty"] = df["class_confidences"].apply(calc)
+    return df
+
+
+def make_legend_for_mode(mode):
+    if mode in ("true_class", "pred_class"):
+        return [html.Span([
+            html.Span(style={"display": "inline-block", "width": "12px", "height": "12px", "borderRadius": "50%", "backgroundColor": CLASS_COLORS[c], "marginRight": "4px", "verticalAlign": "middle"}),
+            html.Span(f"{CLASS_DISPLAY[c]}", style={"fontSize": "12px"})
+        ], style={"marginRight": "14px"}) for c in range(3)]
+    return [html.Span([
+        html.Span(style={"display": "inline-block", "width": "12px", "height": "12px", "borderRadius": "50%", "backgroundColor": c, "marginRight": "4px", "verticalAlign": "middle"}),
+        html.Span(l, style={"fontSize": "12px"})
+    ], style={"marginRight": "14px"}) for l, c in MISCLASS_COLORS.items()]
+
+
+#  Layout components
+header = dbc.Navbar(
+    dbc.Container([
+        dbc.NavbarBrand(
+            "ReVision Lab: A Visual Analytics Dashboard for Image Classification Models",
+            style={"fontWeight": "600", "color": "white"}
+        ),
+        html.Span(
+            "ResNet-50 · UMAP + LIME",
+            style={"color": "rgba(255,255,255,0.7)", "fontSize": "13px"}
+        )
+    ], fluid=True),
+    style={"backgroundColor": THEME["dark"]},
+    dark=True,
+    sticky="top"
+)
+
+sidebar = dbc.Card(dbc.CardBody([
+    html.H6("Filters", className="mb-3", style={"fontWeight": "600"}),
+    html.Label("Show classes", style={"fontSize": "13px"}),
+    dcc.Checklist(id="class-filter", options=[{"label": f" {CLASS_DISPLAY[c]}", "value": c} for c in range(3)], value=[0, 1, 2], inline=False, style={"fontSize": "13px", "marginBottom": "12px"}),
+    html.Label("Confidence range", style={"fontSize": "13px"}),
+    dcc.RangeSlider(id="confidence-slider", min=0.5, max=1, step=0.05, value=[0.5, 1.0], marks={0.5: "0.5", 1: "1"}, tooltip={"placement": "bottom"}),
+    html.Hr(),
+    html.H6("Scatter colour", className="mb-2", style={"fontWeight": "600"}),
+    dcc.RadioItems(id="color-mode", options=[
+        {"label": " True class", "value": "true_class"},
+        {"label": " Predicted class", "value": "pred_class"},
+        {"label": " Misclassification", "value": "misclassification"},
+    ], value="true_class", style={"fontSize": "13px", "marginBottom": "12px"}, inputStyle={"marginRight": "6px"}),
+    html.Hr(),
+    html.H6("Search image", className="mb-2", style={"fontWeight": "600"}),
+    dbc.InputGroup([
+        dbc.Input(id="image-search", placeholder="e.g. cat_001", type="text", size="sm", style={"fontSize": "12px"}),
+        dbc.Button("Go", id="search-btn", size="sm", style={"fontSize": "12px", "backgroundColor": ACCENT, "border": "none"})
+    ], size="sm", className="mb-1"),
+    html.Div(id="search-status", style={"fontSize": "11px", "color": "#888"}),
+    html.Hr(),
+    dbc.Button("Retrain model with annotations", id="retrain-btn", style={"backgroundColor": ACCENT, "border": "none"}, className="w-100", disabled=True),
+    html.Div(id="retrain-status", style={"fontSize": "12px", "marginTop": "6px"}),
+]), style={"maxHeight": "calc(100vh - 100px)",
+         "overflowY": "auto", 
+         "backgroundColor": "white",
+         "border": f"1px solid {THEME['light']}",
+         "borderRadius": "10px"})
+
+overview_row = dbc.Row([
+
+    dbc.Col(dbc.Card(dbc.CardBody([
+        html.H6("Train vs validation vs test accuracy", style={"fontWeight": "600", "fontSize": "14px"}),
+        html.P("Per-class accuracy on train / validation / test split", style={"fontSize": "12px", "color": "#888", "marginBottom": "6px"}),
+        dcc.Graph(id="train-test-bar", config={"displayModeBar": False}, style={"height": "280px"})
+    ]),
+    style={
+        "backgroundColor": "white",
+        "border": f"1px solid {THEME['light']}",
+        "borderRadius": "10px",
+        "boxShadow": "0 2px 6px rgba(0,0,0,0.05)"
+    }), width=4),
+    dbc.Col(dbc.Card(dbc.CardBody([
+        html.H6("Confusion matrix", style={"fontWeight": "600", "fontSize": "14px"}),
+        html.P("True class (rows) vs predicted class (columns)", style={"fontSize": "12px", "color": "#888", "marginBottom": "6px"}),
+        dcc.Graph(id="confusion-matrix", 
+                  config={"displayModeBar": False,
+                            "scrollZoom": False,
+                            "doubleClick": False,
+                            "staticPlot": False,
+                            "modeBarButtonsToRemove": ["zoom2d", "pan2d", "select2d", "lasso2d"],
+                        },
+                    style={"height": "280px", "cursor": "pointer"}
+)
+    ]),
+    style={
+        "backgroundColor": "white",
+        "border": f"1px solid {THEME['light']}",
+        "borderRadius": "10px",
+        "boxShadow": "0 2px 6px rgba(0,0,0,0.05)"
+    }), width=4),
+    dbc.Col(dbc.Card(dbc.CardBody([
+        html.H6("Review queue", style={"fontWeight": "600", "fontSize": "14px"}),
+        html.P("Images ranked in order of descending uncertainty. Click to inspect.", style={"fontSize": "12px", "color": "#888", "marginBottom": "6px"}),
+        html.Div(id="ranking-table", style={"maxHeight": "280px", "overflowY": "auto", "fontSize": "12px"})
+    ]),
+    style={
+        "backgroundColor": "white",
+        "border": f"1px solid {THEME['light']}",
+        "borderRadius": "10px",
+        "boxShadow": "0 2px 6px rgba(0,0,0,0.05)"
+    }), width=4),
+], className="mb-3")
+
+scatter_view = dbc.Card(dbc.CardBody([
+    html.H5("Model hidden layer projection", style={"fontWeight": "600"}),
+    html.P("Each dot is how the network sees an image (last hidden layer → UMAP). Click to inspect.", style={"fontSize": "13px", "color": "#666"}),
+    html.Div(id="scatter-legend", style={"marginBottom": "8px"}),
+    dcc.Loading(dcc.Graph(id="umap-scatter", config={"displayModeBar": True, "scrollZoom": True}, style={"height": "300px"}), type="circle"),
+    html.Div(id="cluster-summary", style={"fontSize": "13px", "marginTop": "8px"})
+    ]),
+    style={
+        "backgroundColor": "white",
+        "border": f"1px solid {THEME['light']}",
+        "borderRadius": "10px",
+        "boxShadow": "0 2px 6px rgba(0,0,0,0.05)"
+    })
+
+side_panel = html.Div(
+            id="side-panel", 
+            style={**PANEL_BASE, "position": "sticky", "top": "89px", "alignSelf": "flex-start"},   # base styling only
+            className="hidden",     # start hidden
+            children=[html.Div([
+                html.Button("✕", id="close-panel-btn", style={"float": "right", "border": "none", "background": "none", "fontSize": "18px", "cursor": "pointer"}),
+                html.H6("Image Inspector", style={"fontWeight": "600"}),
+            ]),
+            html.Hr(),
+            html.Label("LIME overlay opacity", style={"fontSize": "12px"}),
+            dcc.Slider(id="lime-opacity", min=0, max=1, step=0.1, value=0.6, marks={0: "0", 0.5: "0.5", 1: "1"}),
+            html.Div(id="lime-legend", children=[
+                html.Span("LIME: ", style={"fontWeight": "600", "fontSize": "11px"}),
+                html.Span("■", style={"color": "#00FFEE", "fontSize": "14px"}), html.Span(" supports ", style={"fontSize": "11px"}),
+                html.Span("■", style={"color": "#FFD600", "fontSize": "14px"}), html.Span(" opposes", style={"fontSize": "11px"}),
+            ], style={"marginBottom": "6px"}),
+            html.Div(id="image-container", style={"height": "280px", "position": "relative", "marginBottom": "8px", "backgroundColor": "#111", "borderRadius": "6px", "overflow": "hidden"}),
+            html.Div(id="image-metadata"),
+            html.H6("Per-class confidence", style={"fontWeight": "600", "fontSize": "13px"}),
+            dcc.Graph(id="confidence-bars", config={"displayModeBar": False}, style={"height": "120px"}),
+            html.Hr(),
+            html.H6("Annotate", style={"fontWeight": "600", "fontSize": "13px"}),
+            dcc.Graph(id="annotation-canvas", config={"modeBarButtonsToAdd": ["drawclosedpath", "drawrect", "drawcircle", "eraseshape"]}, style={"height": "280px"}),
+            dbc.Row([
+                dbc.Col([html.Label("Brush colour", style={"fontSize": "12px"}),
+                        dcc.Dropdown(id="brush-color", options=[
+                            {"label": "Important (red)", "value": "important"},
+                            {"label": "Artefact (blue)", "value": "artefact"},
+                            {"label": "Background (green)", "value": "background"},
+                        ], value="important", clearable=False, style={"fontSize": "12px"})], width=6),
+                dbc.Col([html.Label("Correct class", style={"fontSize": "12px"}),
+                        dcc.Dropdown(id="correct-class", options=[{"label": CLASS_DISPLAY[c], "value": c} for c in range(3)],
+                                    placeholder="Select…", clearable=False, style={"fontSize": "12px"})], width=6)
+            ], className="mt-2"),
+            dbc.Button("Save annotation", id="save-annotation-btn", style={"backgroundColor": ACCENT, "border": "none"}, size="sm", className="w-100 mt-2"),
+            html.Div(id="save-status", style={"fontSize": "11px", "marginTop": "4px"}),
+            html.Hr(),
+            html.H6("Annotation log", style={"fontWeight": "600", "fontSize": "13px"}),
+            html.Div(id="annotation-log", style={"maxHeight": "150px", "overflowY": "auto"}),
+])
+
+app.layout = html.Div([
+    header,
+    dbc.Container([
+        dbc.Row([
+            dbc.Col(sidebar, width=2, 
+                    style={"paddingRight": "8px",
+                            "position": "sticky",
+                            "top": "89px",    # margin from header
+                            "alignSelf": "flex-start",
+                            # "height": "calc(100vh - 10px)"
+                    }),
+            dbc.Col([
+                overview_row, #ranking_section,
+                html.Div([
+                    html.Div(scatter_view, id="scatter-wrapper", style={"flex": "1", "minWidth": "0", "position": "sticky", "top": "89px", "alignSelf": "flex-start"}),
+                    side_panel
+                ], style={"display": "flex", "gap": "20px"})
+            ], width=10, style={"paddingLeft": "8px", "paddingBottom": "89px"})
+        ], className="mt-3")
+    ], fluid=True),
+    dcc.Store(id="selected-image-id", data=None),
+    dcc.Store(id="current-embeddings", data=None),
+    dcc.Store(id="panel-open", data=False),
+    dcc.Store(id="cm-filter", data=None),
+], style={"backgroundColor": THEME["bg"]})
+
+
+#  Callbacks
+@callback(
+    Output("train-test-bar", "figure"),
+    Output("confusion-matrix", "figure"), Output("ranking-table", "children"),
+    Input("class-filter", "value"), Input("confidence-slider", "value"), Input("cm-filter", "data")
+)
+def update_overview(classes, conf_range, cm_filter):
+    df = load_data()
+    df = df[df["true_class"].isin(classes)]
+    df = filter_by_confidence(df, conf_range[0], conf_range[1])
+    if len(df) == 0:
+        e = go.Figure()
+        e.add_annotation(text="No data", showarrow=False)
+        return e, e, "No data."
+
+    total = len(df)
+
+    # Chart 1: Stacked bar (correct vs misclassified per class)
+    ac = sorted(df["true_class"].unique())
+    labels = [CLASS_DISPLAY[c] for c in ac]
+    tdf = df[df["split"] == "train"]
+    vdf = df[df["split"] == "val"]
+    tedf = df[df["split"] == "test"]
+    tt_fig = go.Figure()
+    ta = [(tdf[tdf["true_class"] == c]["pred_class"] == c).sum() / max(len(tdf[tdf["true_class"] == c]), 1) * 100 for c in ac]
+    va = [(vdf[vdf["true_class"] == c]["pred_class"] == c).sum() / max(len(vdf[vdf["true_class"] == c]), 1) * 100 for c in ac]
+    tea = [(tedf[tedf["true_class"] == c]["pred_class"] == c).sum() / max(len(tedf[tedf["true_class"] == c]), 1) * 100 for c in ac]
+    tt_fig.add_trace(go.Bar(name="Train", x=labels, y=ta, marker_color="#105B73", text=[f"{a:.0f}%" for a in ta], textposition="inside", textfont=dict(size=10, color="white")))
+    tt_fig.add_trace(go.Bar(name="Val", x=labels, y=va, marker_color="#A52534", text=[f"{a:.0f}%" for a in va], textposition="inside", textfont=dict(size=10, color="white")))
+    tt_fig.add_trace(go.Bar(name="Test", x=labels, y=tea, marker_color="#E67E22", text=[f"{a:.0f}%" for a in tea], textposition="inside", textfont=dict(size=10, color="white")))
+    ot = (tdf["pred_class"] == tdf["true_class"]).mean() * 100
+    ov = (vdf["pred_class"] == vdf["true_class"]).mean() * 100
+    ote = (tedf["pred_class"] == tedf["true_class"]).mean() * 100
+    tt_fig.update_layout(template="plotly_white", barmode="group", margin=dict(l=40, r=10, t=20, b=40),
+                          yaxis=dict(title="Accuracy %", range=[0, 100]),
+                          legend=dict(orientation="h", yanchor="bottom", y=-0.3, x=0.05), height=280,
+                          annotations=[dict(text=f"Overall: Train {ot:.1f}% | Val {ov:.1f}% | Test {ote:.1f}%", xref="paper", yref="paper", x=0.5, y=1.1, showarrow=False, font=dict(size=11, color="#555"))])
+
+    # Chart 3: Confusion matrix
+    n = len(ac)
+    cm = np.zeros((n, n), dtype=int)
+    for i, tc in enumerate(ac):
+        for j, pc in enumerate(ac):
+            cm[i, j] = ((df["true_class"] == tc) & (df["pred_class"] == pc)).sum()
+    
+    if cm_filter is not None:
+        df = df[(df["true_class"] == cm_filter["true"]) &
+                (df["pred_class"] == cm_filter["pred"])]
+    
+    cmf = go.Figure(go.Heatmap(
+        z=cm, 
+        x=[CLASS_DISPLAY[c] for c in ac], 
+        y=[CLASS_DISPLAY[c] for c in ac],
+        text=[[str(cm[i, j]) for j in range(n)] for i in range(n)],
+        texttemplate="%{text}", 
+        colorscale=[[0, "#f8f9fa"], [0.3, "#f5c4b3"], [0.6, "#e67e22"], [1, "#A52534"]],
+        showscale=False, 
+        hovertemplate="<b>%{y}</b> → <b>%{x}</b><br>Count: %{z}<extra></extra>"
+        ))
+    cmf.update_layout(dragmode=False, template="plotly_white", margin=dict(l=40, r=10, t=10, b=40),
+                       xaxis=dict(title="Predicted"), yaxis=dict(title="True", autorange="reversed"), height=280)
+
+    # Apply confusion-matrix filter if active
+    if cm_filter is not None:
+        ti = ac.index(cm_filter["true"])
+        pi = ac.index(cm_filter["pred"])
+
+        cmf.add_shape(
+            type="rect",
+            x0=pi - 0.5, x1=pi + 0.5,
+            y0=ti - 0.5, y1=ti + 0.5,
+            line=dict(color="black", width=3)
+        )
+
+    # Ranking table
+    dr = compute_uncertainty(df).sort_values("uncertainty", ascending=False)#.head(20)
+
+    rows = []
+    for _, r in dr.iterrows():
+        full_id = r["image_id"]
+        short_id = full_id[:15] + "…" if len(full_id) > 15 else full_id
+
+        row = html.Tr(
+            [
+                html.Td(short_id, style={"fontFamily": "monospace"}),
+                html.Td(f"{r['uncertainty']:.2f}"),
+                html.Td(CLASS_DISPLAY[int(r["true_class"])]),
+                html.Td(CLASS_DISPLAY[int(r["pred_class"])]),
+                html.Td(
+                    dbc.Badge(
+                        "✗" if r["pred_class"] != r["true_class"] else "✓",
+                        color="#A52534" if r["pred_class"] != r["true_class"] else "#105B73",
+                        style={"fontSize": "10px"}
+                    )
+                )
+            ],
+            id={"type": "queue-item", "index": full_id},   # ← entire row is clickable
+            n_clicks=0,
+            style={
+                "cursor": "pointer",
+                "backgroundColor": "#fff5f5" if r["pred_class"] != r["true_class"] else "",
+            }
+        )
+
+        rows.append(row)
+
+
+    tbl = html.Table([
+        html.Thead(html.Tr([
+            html.Th("Image ID"),
+            html.Th("Uncertainty"),
+            html.Th("True"),
+            html.Th("Pred"),
+            html.Th("")
+        ])),
+        html.Tbody(rows)
+    ], style={"width": "100%"}, className="table table-sm table-hover")
+
+
+    return tt_fig, cmf, tbl
+
+
+@callback(
+    Output("cm-filter", "data"),
+    Input("confusion-matrix", "clickData"),
+    State("cm-filter", "data"),
+    prevent_initial_call=True
+)
+def toggle_cm_filter(click, current_filter):
+    if click is None:
+        raise PreventUpdate
+    print("CLICKDATA:", click)
+
+    true_label = click["points"][0]["y"]
+    pred_label = click["points"][0]["x"]
+
+    # Reverse lookup: label → class index
+    def label_to_class(label):
+        for k, v in CLASS_DISPLAY.items():
+            if v == label:
+                return k
+        return None
+
+    true_class = label_to_class(true_label)
+    pred_class = label_to_class(pred_label)
+
+    new_filter = {"true": true_class, "pred": pred_class}
+
+    # Clicking same cell removes filter
+    if current_filter == new_filter:
+        return None
+
+    return new_filter
+
+
+@callback(
+    Output("umap-scatter", "figure", allow_duplicate=True),
+    Input("selected-image-id", "data"),
+    State("umap-scatter", "figure"),
+    prevent_initial_call=True
+)
+def highlight_selected_point(iid, fig):
+    if iid is None or fig is None:
+        raise PreventUpdate
+
+    # Reset all marker sizes/colors
+    for trace in fig["data"]:
+        trace["marker"]["size"] = 8
+        trace["marker"]["opacity"] = 0.4
+
+    # Highlight the selected point
+    for trace in fig["data"]:
+        for i, cd in enumerate(trace["customdata"]):
+            if cd[0] == iid:
+                trace["marker"]["size"] = [
+                    16 if cd[0] == iid else 8 for cd in trace["customdata"]
+                ]
+                trace["marker"]["opacity"] = [
+                    1.0 if cd[0] == iid else 0.2 for cd in trace["customdata"]
+                ]
+                break
+
+    return fig
+
+
+
+
+@callback(
+    Output("umap-scatter", "figure"),
+    Output("cluster-summary", "children"),
+    Output("current-embeddings", "data"),
+    Output("scatter-legend", "children"),
+    Input("class-filter", "value"),
+    Input("confidence-slider", "value"),
+    Input("color-mode", "value")
+)
+def update_scatter(classes, cr, cm):
+    df = load_data()
+
+    df = df[df["true_class"].isin(classes)]
+    df = filter_by_confidence(df, cr[0], cr[1])
+    if len(df) < 2:
+        e = go.Figure()
+        e.add_annotation(text="Not enough data", showarrow=False)
+        return e, "", None, []
+
+    df = df.copy()  # UMAP already in df
+    df["mis"] = df["pred_class"] != df["true_class"]
+
+    fig = go.Figure()
+    ht = "<b>Image:</b> %{customdata[0]}<br><b>Pred:</b> %{customdata[1]}<br><b>True:</b> %{customdata[2]}<br><b>Conf:</b> %{customdata[3]:.2f}<extra></extra>"
+    cd = ["image_id", "pred_class", "true_class", "confidence"]
+
+    if cm == "true_class":
+        for c in sorted(df["true_class"].unique()):
+            s = df[df["true_class"] == c]
+            fig.add_trace(go.Scatter(
+                x=s["u1"], y=s["u2"], mode="markers",
+                marker=dict(size=8, color=CLASS_COLORS[c], line=dict(width=0.5, color="white")),
+                name=CLASS_DISPLAY[c], customdata=s[cd].values, hovertemplate=ht
+            ))
+
+    elif cm == "pred_class":
+        for c in sorted(df["pred_class"].unique()):
+            s = df[df["pred_class"] == c]
+            fig.add_trace(go.Scatter(
+                x=s["u1"], y=s["u2"], mode="markers",
+                marker=dict(size=8, color=CLASS_COLORS[c], line=dict(width=0.5, color="white")),
+                name=f"Pred {CLASS_DISPLAY[c]}", customdata=s[cd].values, hovertemplate=ht
+            ))
+
+    else:  # misclassification
+        for mis, label, color in [(False, "Correct", "#105B73"), (True, "Misclassified", "#A52534")]:
+            s = df[df["mis"] == mis]
+            fig.add_trace(go.Scatter(
+                x=s["u1"], y=s["u2"], mode="markers",
+                marker=dict(size=8, color=color, line=dict(width=0.5, color="white")),
+                name=label, customdata=s[cd].values, hovertemplate=ht
+            ))
+
+    fig.update_layout(
+        template="plotly_white",
+        margin=dict(l=20, r=20, t=30, b=20),
+        xaxis=dict(title="UMAP 1", showgrid=False),
+        yaxis=dict(title="UMAP 2", showgrid=False),
+        legend=dict(orientation="h", yanchor="bottom", y=-0.15),
+        clickmode="event+select"
+    )
+
+    t = len(df)
+    m = df["mis"].sum()
+
+    return fig, f"{t} images · {m} misclassified ({m/t:.0%})", df[["image_id", "u1", "u2"]].to_json(), make_legend_for_mode(cm)
+
+
+@callback(
+    Output("side-panel", "className"), Output("panel-open", "data"), Output("selected-image-id", "data"),
+    Output("image-container", "children"), Output("image-metadata", "children"),
+    Output("confidence-bars", "figure"), Output("annotation-canvas", "figure"), Output("search-status", "children"),
+    Input("umap-scatter", "clickData"), Input("close-panel-btn", "n_clicks"), Input("search-btn", "n_clicks"), Input({"type": "queue-item", "index": dash.ALL}, "n_clicks"),
+    State("image-search", "value"), State("lime-opacity", "value"), State("panel-open", "data"), State("brush-color", "value"))
+def handle_panel(cd, cc, sc, qc, sv, lo, po, bc):
+    t = ctx.triggered_id
+    n = (no_update,) * 8
+    if t == "close-panel-btn":
+        return "hidden", False, None, no_update, no_update, no_update, no_update, ""
+    if t == "search-btn":
+        if not sv or not sv.strip():
+            return *n[:7], "Enter an image ID."
+        q = sv.strip()
+        df = load_data()
+        m = df[df["image_id"] == q]
+        if len(m) == 0:
+            m = df[df["image_id"].str.contains(q, case=False, na=False)]
+        if len(m) == 0:
+            return *n[:7], f"Not found: '{q}'"
+        row = m.iloc[0]
+        iid = row["image_id"]
+        r = _build_panel(iid, row, lo, bc)
+        return "visible", True, iid, *r, f"Found: {iid}"
+    
+    if isinstance(t, dict) and t.get("type") == "queue-item":
+        iid = t["index"]
+        df = load_data()
+        row = df[df["image_id"] == iid].iloc[0]
+        r = _build_panel(iid, row, lo, bc)
+        return "visible", True, iid, *r, f"Selected: {iid}"
+
+    if cd is None:
+        return "hidden", False, None, no_update, no_update, no_update, no_update, ""
+
+    
+    p = cd["points"][0]
+    iid = p["customdata"][0]
+    df = load_data()
+    row = df[df["image_id"] == iid].iloc[0]
+    r = _build_panel(iid, row, lo, bc)
+    return "visible", True, iid, *r, ""
+
+
+def _build_panel(image_id, row, lime_opacity, brush_color):
+    pc = int(row["pred_class"])
+    tc = int(row["true_class"])
+    cc = json.loads(row["class_confidences"])
+
+    lime_img, _ = generate_lime_explanation(image_id, true_class=tc)
+    ob = _pil_to_b64(row["image_path"])
+    lb = _arr_to_b64(lime_img)
+
+    img = html.Div([
+        html.Img(src=f"data:image/png;base64,{ob}", style={"width": "100%", "height": "100%", "objectFit": "contain", "position": "absolute", "top": 0, "left": 0}),
+        html.Img(src=f"data:image/png;base64,{lb}", id="lime-overlay-img", style={"width": "100%", "height": "100%", "objectFit": "contain", "position": "absolute", "top": 0, "left": 0, "opacity": lime_opacity}),
+    ], style={"position": "relative", "height": "100%"})
+
+    probs = sorted(cc, reverse=True)
+    unc = 1.0 - (probs[0] - probs[1]) if len(probs) >= 2 else 0
+
+    meta = html.Div([
+        html.H6(f"Image: {image_id}", style={"fontWeight": "600", "fontSize": "14px"}),
+        html.P([html.Span("Predicted: ", style={"fontWeight": "500"}),
+                html.Span(CLASS_DISPLAY[pc], style={"color": CLASS_COLORS[pc], "fontWeight": "600"})],
+               style={"marginBottom": "2px", "fontSize": "13px"}),
+        html.P([html.Span("True: ", style={"fontWeight": "500"}),
+                html.Span(CLASS_DISPLAY[tc], style={"color": CLASS_COLORS[tc], "fontWeight": "600"})],
+               style={"marginBottom": "2px", "fontSize": "13px"}),
+        html.P([dbc.Badge("Correct" if pc == tc else "Misclassified",
+                           color="#105B73" if pc == tc else "#A52534", style={"fontSize": "11px"}),
+                html.Span(f"  Uncertainty: {unc:.2f}", style={"fontSize": "12px", "color": "#888", "marginLeft": "8px"})])
+    ])
+
+    cf = go.Figure(go.Bar(x=cc, y=[CLASS_DISPLAY[i] for i in range(3)], orientation="h",
+                           marker_color=[CLASS_COLORS[i] for i in range(3)],
+                           text=[f"{c:.0%}" for c in cc], textposition="auto", textfont=dict(size=11)))
+    cf.update_layout(template="plotly_white", margin=dict(l=50, r=10, t=5, b=5),
+                      xaxis=dict(range=[0, 1], title="", showticklabels=False), yaxis=dict(title=""), height=120)
+
+    b = BRUSH_COLORS.get(brush_color, BRUSH_COLORS["important"])
+    af = _make_annot_fig(row["image_path"], b["fill"], b["line"])
+
+    return img, meta, cf, af
+
+
+@callback(Output("annotation-canvas", "figure", allow_duplicate=True), Input("brush-color", "value"), State("annotation-canvas", "figure"), prevent_initial_call=True)
+def update_brush(bc, fig):
+    if fig is None:
+        return no_update
+    c = BRUSH_COLORS.get(bc, BRUSH_COLORS["important"])
+    fig["layout"]["newshape"] = {"fillcolor": c["fill"], "line": {"color": c["line"], "width": 2}}
+    return fig
+
+
+@callback(Output("lime-overlay-img", "style"), Input("lime-opacity", "value"), prevent_initial_call=True)
+def update_opacity(o):
+    return {"width": "100%", "height": "100%", "objectFit": "contain", "position": "absolute", "top": 0, "left": 0, "opacity": o}
+
+
+@callback(
+    Output("annotation-log", "children"), Output("save-status", "children"), Output("retrain-btn", "disabled"),
+    Input("save-annotation-btn", "n_clicks"),
+    State("selected-image-id", "data"), State("annotation-canvas", "relayoutData"),
+    State("correct-class", "value"), State("brush-color", "value"), prevent_initial_call=True)
+def save_ann(nc, iid, rd, cg, bc):
+    if iid is None:
+        return no_update, "No image selected.", True
+    if cg is None:
+        return no_update, "Select correct class.", True
+    shapes = []
+    if rd:
+        for k, v in rd.items():
+            if "shapes" in k:
+                if isinstance(v, list):
+                    shapes.extend(v)
+                elif isinstance(v, dict):
+                    shapes.append(v)
+    c = BRUSH_COLORS.get(bc, BRUSH_COLORS["important"])
+    annotation_store.add(image_id=iid, correct_class=cg, shapes=shapes, brush_color=c["fill"])
+    log = [dbc.Card(dbc.CardBody([
+        html.Strong(a["image_id"], style={"fontSize": "11px"}), html.Br(),
+        html.Span(f"→ {CLASS_DISPLAY[a['correct_class']]} · {len(a['shapes'])} regions", style={"fontSize": "10px", "color": "#666"})
+    ], style={"padding": "4px 8px"}), className="mb-1") for a in annotation_store.get_all()]
+    return log, f"Saved for {iid}.", not bool(annotation_store.get_all())
+
+
+@callback(
+    Output("retrain-status", "children"),
+    Output("annotation-log", "children", allow_duplicate=True),
+    Output("retrain-btn", "disabled", allow_duplicate=True),
+    Input("retrain-btn", "n_clicks"), prevent_initial_call=True)
+def retrain(nc):
+    a = annotation_store.get_all()
+    if not a:
+        return "No annotations.", no_update, True
+    result = retrain_with_annotations(a)
+    annotation_store.clear()
+    return result["message"], [], True
+
+
+#  Helper functions
+def _pil_to_b64(p):
+    i = Image.open(p).convert("RGB")
+    b = BytesIO()
+    i.save(b, format="PNG")
+    return base64.b64encode(b.getvalue()).decode()
+
+
+def _arr_to_b64(a):
+    if a.dtype == np.uint8:
+        i = Image.fromarray(a, "RGBA" if a.ndim == 3 and a.shape[2] == 4 else "RGB")
+    else:
+        i = Image.fromarray((a * 255).astype(np.uint8))
+    b = BytesIO()
+    i.save(b, format="PNG")
+    return base64.b64encode(b.getvalue()).decode()
+
+
+def _make_annot_fig(p, fc="rgba(255,0,0,0.3)", lc="red"):
+    i = Image.open(p).convert("RGB")
+    w, h = i.size
+    f = go.Figure()
+    f.add_layout_image(dict(source=i, xref="x", yref="y", x=0, y=h, sizex=w, sizey=h, sizing="stretch", layer="below"))
+    f.update_xaxes(range=[0, w], showgrid=False, zeroline=False, visible=False)
+    f.update_yaxes(range=[0, h], showgrid=False, zeroline=False, visible=False, scaleanchor="x")
+    f.update_layout(template="plotly_white", margin=dict(l=0, r=0, t=0, b=0), height=280,
+                     newshape=dict(fillcolor=fc, line=dict(color=lc, width=2)), dragmode="drawclosedpath")
+    return f
+
+
+if __name__ == "__main__":
+    app.run(debug=True, port=8050)

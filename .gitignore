@@ -1,0 +1,13 @@
+#Ignore virtual environment
+.venv
+.venv-1
+.VAvenv
+
+#Ignore pycache
+__pycache__/        
+
+#Ignore Jupyter Notebook checkpoints
+.ipynb_checkpoints/ 
+
+#data files
+\data
