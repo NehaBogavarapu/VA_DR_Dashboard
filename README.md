@@ -44,10 +44,12 @@ Each subfolder should contain the corresponding animal images directly (no extra
 
 ## Installation
 
-### 1. Clone the repository
+### 1. Extract the repository
+
+Unzip the provided archive:
 
 ```bash
-git clone <repo-url>
+unzip VA_DR_DASHBOARD.zip
 cd VA_DR_DASHBOARD
 ```
 
@@ -105,6 +107,18 @@ The dashboard will be available at **http://127.0.0.1:8050** (or the port shown 
 
 ## Dependencies
 
+Key external libraries used:
+
+- **Dash** + **Dash Bootstrap Components** — interactive web dashboard
+- **Plotly** — interactive charts and scatter plots
+- **fastai** / **PyTorch** / **torchvision** — model training, inference, and retraining
+- **LIME** — perturbation-based saliency explanations
+- **umap-learn** — UMAP dimensionality reduction
+- **scikit-learn** — k-means clustering and preprocessing
+- **scikit-image** — image segmentation (quickshift for LIME)
+- **Pandas** / **NumPy** / **SciPy** — data manipulation and numerical operations
+- **Pillow** / **OpenCV** — image loading and processing
+
 All dependencies with pinned versions are listed in `requirements.txt`. Install them with:
 
 ```bash
@@ -129,6 +143,8 @@ We adapted the pretrained ResNet-50 architecture from that notebook to work with
 - Annotation store for human-in-the-loop label corrections (`annotation_store_DCP.py`)
 - Retraining pipeline with frozen backbone fine-tuning (`retrain_DCP.py`)
 - Adapted training notebook for the new dataset and classification task (`DCP_animal_classifier_resnet50.ipynb`)
+
+**Tools:** Claude AI (Anthropic) was used for debugging purposes during development.
 
 ---
 
