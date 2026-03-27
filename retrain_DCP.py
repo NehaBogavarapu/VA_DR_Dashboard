@@ -346,7 +346,7 @@ def _finetune(learn, corrected_labels: dict, annotation_shapes: dict):
 
     image_ids = list(corrected_labels.keys())
     # Use CLASS_DISPLAY (Cat/Dog/Panda) which matches fastai class names
-    fastai_labels = [name_to_fastai_idx[CLASS_NAMES[corrected_labels[i]]] for i in image_ids]
+    fastai_labels = [name_to_fastai_idx[CLASS_DISPLAY[corrected_labels[i]]] for i in image_ids]
 
     df = pd.read_csv(PREDICTIONS_PATH)
     id_to_tc = dict(zip(df["image_id"], df["true_class"]))
